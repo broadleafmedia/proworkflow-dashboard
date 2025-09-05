@@ -37,6 +37,33 @@
             font-size: 1rem;
         }
 
+        .nav-bar {
+            background: white;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: #667eea;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background-color 0.2s ease;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            background: #f1f5f9;
+        }
+
+        .nav-link.active {
+            background: #667eea;
+            color: white;
+        }
+
         .controls {
             background: white;
             padding: 1.5rem 2rem;

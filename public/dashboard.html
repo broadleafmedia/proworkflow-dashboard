@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProWorkflow Team Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 1rem;
+        }
+
+        .controls {
+            background: white;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.8rem;
+        }
+
+        select, button {
+            padding: 0.6rem 0.8rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        select:focus, button:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            min-width: 120px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .stats {
+            display: flex;
+            gap: 1rem;
+            margin: 0 1.5rem 1.5rem 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            flex: 1;
+            min-width: 180px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .projects-container {
+            margin: 0 1.5rem 2rem 1.5rem;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .projects-header {
+            background: #f8fafc;
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid #e1e8ed;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .projects-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .health-legend {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+
+        .legend-text {
+            color: #666;
+        }
+
+        .legend-text.healthy { color: #10b981; font-weight: 600; }
+        .legend-text.warning { color: #f59e0b; font-weight: 600; }
+        .legend-text.critical { color: #ef4444; font-weight: 600; }
+
+        .projects-table-container {
+        }
+
+        .projects-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .projects-table th {
+            background: #f8fafc;
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e1e8ed;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-size: 0.8rem;
+        }
+
+        /* SORTABLE HEADER STYLES */
+        .projects-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            background: #f1f5f9;
+            transition: background-color 0.2s ease;
+            border: 1px solid #e1e8ed;
+        }
+
+        .projects-table th.sortable:hover {
+            background: #e2e8f0;
+            color: #4c63d2;
+        }
+
+        .sort-indicator {
+            margin-left: 8px;
+            font-size: 0.9rem;
+            opacity: 0.7;
+            transition: opacity 0.2s ease;
+            font-weight: bold;
+        }
+
+        .sort-indicator.active {
+            opacity: 1;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .projects-table td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .projects-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .project-number {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #f1f5f9;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        .project-link {
+            color: #667eea;
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s ease;
+            font-size: 0.85rem;
+        }
+
+        .project-link:hover {
+            color: #4c63d2;
+            text-decoration: underline;
+        }
+
+        .status-badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 16px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            display: inline-block;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        /* HEALTH BADGE STYLES */
+        .health-badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 16px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            display: inline-block;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .health-badge.healthy {
+            background: #10b981;
+            color: white;
+        }
+
+        .health-badge.warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .health-badge.critical {
+            background: #ef4444;
+            color: white;
+        }
+
+        .days-badge {
+            background: #f1f5f9;
+            color: #64748b;
+            padding: 0.25rem 0.6rem;
+            border-radius: 10px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .days-badge.urgent {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .days-badge.warning {
+            background: #fef3c7;
+            color: #d97706;
+        }
+
+        /* EXPAND BUTTON STYLING - Enhanced square button */
+        .expand-btn {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+
+        .expand-btn:hover {
+            background: #e2e8f0;
+            border-color: #cbd5e1;
+            transform: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .expand-btn:active {
+            background: #cbd5e1;
+        }
+
+        .expand-arrow {
+            width: 0;
+            height: 0;
+            border-left: 8px solid #667eea;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            transition: transform 0.3s ease;
+            transform-origin: 35% 50%;
+        }
+
+        .expand-btn.expanded .expand-arrow {
+            transform: rotate(90deg);
+        }
+
+        .expand-btn:hover .expand-arrow {
+            border-left-color: #4c63d2;
+        }
+
+        /* Task section styling */
+        .task-section {
+            display: none;
+        }
+
+        .task-section.expanded {
+            display: block;
+            background: #fafbfc;
+            padding: 1rem;
+            border-left: 4px solid #667eea;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e1e8ed;
+            font-size: 0.85rem;
+        }
+
+        .task-item:last-child {
+            border-bottom: none;
+        }
+
+        .task-checkbox {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #cbd5e1;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s ease;
+        }
+
+        .task-checkbox.completed {
+            background: #10b981;
+            border-color: #10b981;
+            color: white;
+        }
+
+        .task-checkbox.completed::after {
+            content: '✓';
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        .task-title {
+            flex: 1;
+            font-weight: 500;
+        }
+
+        .task-assignment {
+            color: #666;
+            font-size: 0.8rem;
+            margin-left: auto;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            color: #667eea;
+            font-size: 1.1rem;
+        }
+
+        .loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid #667eea;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .no-projects {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ProWorkflow Team Dashboard</h1>
+        <p>Track your team's projects and activity</p>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="managerSelect">Filter by Manager</label>
+            <select id="managerSelect">
+                <option value="">All Team Members</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="sortSelect">Sort by</label>
+            <select id="sortSelect">
+                <option value="idle">Most Idle First</option>
+                <option value="age">Oldest Projects</option>
+                <option value="manager">Manager Name</option>
+                <option value="number">Project Number</option>
+                <option value="status">Status</option>
+                <option value="title">Project Title</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>&nbsp;</label>
+            <button onclick="loadProjects()">Refresh Data</button>
+        </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="projects-container">
+        <div class="projects-header">
+            <div class="projects-title" id="projectsTitle">Team Projects</div>
+            <div class="health-legend">
+                <span class="legend-text healthy">Healthy (&lt;5 days)</span>
+                <span class="legend-text warning">Warning (5-7 days)</span>
+                <span class="legend-text critical">Critical (8+ days or overdue)</span>
+            </div>
+        </div>
+        
+        <div class="projects-table-container">
+            <div id="projectsContent">
+                <div class="loading">Loading projects...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allProjects = [];
+        let availableManagers = [];
+        let expandedProjects = new Set();
+        let currentSort = { field: 'idle', direction: 'desc' };
+
+        async function loadProjects() {
+            const manager = document.getElementById('managerSelect').value;
+            
+            document.getElementById('projectsContent').innerHTML = '<div class="loading">Loading projects...</div>';
+            
+            try {
+                let url = '/api/rest/projects-table';
+                const params = new URLSearchParams();
+                
+                if (manager) params.append('manager', manager);
+                // Use currentSort instead of dropdown
+                if (currentSort.field) params.append('sort', currentSort.field);
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
+                
+                console.log('Loading with sort:', currentSort.field, currentSort.direction);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                allProjects = data.projects || [];
+                availableManagers = data.availableManagers || [];
+                
+                updateManagerDropdown();
+                updateStats(data);
+                renderProjects(allProjects);
+                
+            } catch (error) {
+                console.error('Error loading projects:', error);
+                document.getElementById('projectsContent').innerHTML = 
+                    '<div class="no-projects">Error loading projects. Please try again.</div>';
+            }
+        }
+
+        function sortByHeader(field) {
+            console.log('Sorting by header:', field);
+            
+            // Toggle direction if same field
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'asc';
+            }
+            
+            // Update dropdown to match
+            const dropdown = document.getElementById('sortSelect');
+            dropdown.value = field;
+            
+            loadProjects();
+        }
+
+        function getProjectHealth(project) {
+            // Red: Overdue projects OR projects idle 8+ days
+            if (project.isOverdue || project.daysIdle >= 8) {
+                return {
+                    status: 'critical',
+                    text: project.isOverdue ? 'Overdue' : 'Stale',
+                    class: 'critical'
+                };
+            }
+            
+            // Yellow: Projects idle 5-7 days
+            if (project.daysIdle >= 5 && project.daysIdle <= 7) {
+                return {
+                    status: 'warning',
+                    text: 'Warning',
+                    class: 'warning'
+                };
+            }
+            
+            // Green: Active projects (under 5 days idle)
+            return {
+                status: 'healthy',
+                text: 'Healthy',
+                class: 'healthy'
+            };
+        }
+
+        function renderProjects(projects) {
+            if (!projects || projects.length === 0) {
+                document.getElementById('projectsContent').innerHTML = 
+                    '<div class="no-projects">No projects found with current filters.</div>';
+                return;
+            }
+
+            const container = document.getElementById('projectsContent');
+            container.innerHTML = '';
+            
+            const table = document.createElement('table');
+            table.className = 'projects-table';
+            
+            // Create header with clickable sorting - UPDATED with Health column
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            // Define headers with sort fields - ADDED Health column
+            const headerConfig = [
+                { text: '', field: null },
+                { text: 'Project #', field: 'number' },
+                { text: 'Title', field: 'title' },
+                { text: 'Manager', field: 'manager' },
+                { text: 'Custom Status', field: 'status' },
+                { text: 'Start', field: null },
+                { text: 'Due Date', field: 'dueDate' },
+                { text: 'Health', field: 'health' }, // NEW Health column
+                { text: 'Days Idle', field: 'idle' }
+            ];
+
+            headerConfig.forEach(config => {
+                const th = document.createElement('th');
+                th.textContent = config.text;
+                
+                if (config.field) {
+                    th.className = 'sortable';
+                    th.onclick = () => sortByHeader(config.field);
+                    
+                    // Add sort indicator
+                    const indicator = document.createElement('span');
+                    indicator.className = 'sort-indicator';
+                    
+                    if (currentSort.field === config.field) {
+                        indicator.className += ' active';
+                        indicator.textContent = currentSort.direction === 'asc' ? ' ↑' : ' ↓';
+                    } else {
+                        indicator.textContent = ' ↕';
+                    }
+                    
+                    th.appendChild(indicator);
+                }
+                
+                headerRow.appendChild(th);
+            });
+
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // Create body
+            const tbody = document.createElement('tbody');
+            
+            projects.forEach((project, index) => {
+                // Main project row
+                const row = document.createElement('tr');
+                
+                // Expand button cell
+                const expandCell = document.createElement('td');
+                const expandBtn = document.createElement('button');
+                expandBtn.className = 'expand-btn';
+                expandBtn.onclick = () => toggleProject(project.projectId, expandBtn);
+                
+                const arrow = document.createElement('div');
+                arrow.className = 'expand-arrow';
+                expandBtn.appendChild(arrow);
+                expandCell.appendChild(expandBtn);
+                row.appendChild(expandCell);
+                
+                // Get health info for this project
+                const healthInfo = getProjectHealth(project);
+                
+                // Project data cells - UPDATED with Health column and dash for due date
+                const cells = [
+                    { content: project.number, class: 'project-number' },
+                    { content: project.title, link: project.projectUrl, class: 'project-link' },
+                    { content: project.owner },
+                    { content: project.customStatus, style: `background: ${project.statusColor}; color: white;`, class: 'status-badge' },
+                    { content: project.startDate || 'No start date' },
+                    { content: project.dueDate || '-' },  // FIXED: Now shows dash for empty due dates
+                    { content: healthInfo.text, class: `health-badge ${healthInfo.class}` }, // NEW Health badge
+                    { content: project.daysIdle > 0 ? project.daysIdle + ' days' : 'Active', class: getDaysClass(project.daysIdle) }
+                ];
+
+                cells.forEach(cellData => {
+                    const td = document.createElement('td');
+                    
+                    if (cellData.link) {
+                        const link = document.createElement('a');
+                        link.href = cellData.link;
+                        link.target = '_blank';
+                        link.className = cellData.class || '';
+                        link.textContent = cellData.content;
+                        td.appendChild(link);
+                    } else {
+                        const span = document.createElement('span');
+                        if (cellData.class) span.className = cellData.class;
+                        if (cellData.style) span.setAttribute('style', cellData.style);
+                        span.textContent = cellData.content;
+                        td.appendChild(span);
+                    }
+                    
+                    row.appendChild(td);
+                });
+
+                tbody.appendChild(row);
+                
+                // Task section row (hidden by default)
+                const taskRow = document.createElement('tr');
+                const taskCell = document.createElement('td');
+                taskCell.colSpan = 9; // Updated for Health column (expand + 8 data columns)
+                
+                const taskSection = document.createElement('div');
+                taskSection.className = 'task-section';
+                taskSection.id = `tasks-${project.projectId}`;
+                
+                taskCell.appendChild(taskSection);
+                taskRow.appendChild(taskCell);
+                tbody.appendChild(taskRow);
+            });
+            
+            table.appendChild(tbody);
+            container.appendChild(table);
+        }
+
+        async function toggleProject(projectId, button) {
+            const taskSection = document.getElementById(`tasks-${projectId}`);
+            
+            if (expandedProjects.has(projectId)) {
+                // Collapse
+                taskSection.classList.remove('expanded');
+                button.classList.remove('expanded');
+                expandedProjects.delete(projectId);
+            } else {
+                // Expand and load tasks
+                button.classList.add('expanded');
+                taskSection.classList.add('expanded');
+                expandedProjects.add(projectId);
+                
+                taskSection.innerHTML = '<div class="loading">Loading tasks...</div>';
+                await loadProjectTasks(projectId);
+            }
+        }
+
+        // Store loaded tasks per project to handle "Load More"
+        const projectTasks = new Map();
+
+        async function loadProjectTasks(projectId, offset = 0) {
+            try {
+                const taskSection = document.getElementById(`tasks-${projectId}`);
+                
+                // Show loading for initial load or append loading for "Load More"
+                if (offset === 0) {
+                    taskSection.innerHTML = `
+                        <div class="loading">
+                            Loading tasks...
+                            <div class="progress-info">Fetching first 20 task assignments</div>
+                        </div>
+                    `;
+                    projectTasks.set(projectId, []); // Reset stored tasks
+                } else {
+                    // For "Load More", show loading at the bottom
+                    const loadMoreBtn = taskSection.querySelector('.load-more-btn');
+                    if (loadMoreBtn) {
+                        loadMoreBtn.textContent = 'Loading...';
+                        loadMoreBtn.disabled = true;
+                    }
+                }
+                
+                const response = await fetch(`/api/rest/project/${projectId}/tasks?limit=20&offset=${offset}`);
+                const data = await response.json();
+                
+                if (!data.tasks || data.tasks.length === 0) {
+                    if (offset === 0) {
+                        taskSection.innerHTML = '<div style="padding: 1rem; color: #666;">No tasks found</div>';
+                    }
+                    return;
+                }
+
+                // Get existing tasks or start fresh
+                const existingTasks = projectTasks.get(projectId) || [];
+                const allTasks = [...existingTasks, ...data.tasks];
+                projectTasks.set(projectId, allTasks);
+
+                // Enhanced task table with narrower expand column
+                let html = `
+                    <table style="width: 1200px; border-collapse: collapse; table-layout: fixed;">
+                        <thead>
+                            <tr>
+                                <th style="width: 32px; text-align: center; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;"></th>
+                                <th style="width: 60px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Task #</th>
+                                <th style="width: 288px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Task Title</th>
+                                <th style="width: 80px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Priority</th>
+                                <th style="width: 120px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Assigned To</th>
+                                <th style="width: 90px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Start Date</th>
+                                <th style="width: 90px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Due Date</th>
+                                <th style="width: 90px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Completed</th>
+                                <th style="width: 80px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Time Alloc</th>
+                                <th style="width: 80px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Time Spent</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+                
+                allTasks.forEach(task => {
+                    // Priority display - match ProWorkflow's color scheme
+                    let priorityText = 'Medium';
+                    let priorityStyle = 'background: #9ca3af; color: white;'; // Gray for Medium (default)
+                    
+                    switch(task.priority) {
+                        case 1:
+                            priorityText = 'Very High';
+                            priorityStyle = 'background: #dc2626; color: white;'; // Red
+                            break;
+                        case 2:
+                            priorityText = 'High';
+                            priorityStyle = 'background: #f97316; color: white;'; // Orange
+                            break;
+                        case 3:
+                            priorityText = 'Medium';
+                            priorityStyle = 'background: #9ca3af; color: white;'; // Gray (default)
+                            break;
+                        case 4:
+                            priorityText = 'Low';
+                            priorityStyle = 'background: #3b82f6; color: white;'; // Blue
+                            break;
+                        case 5:
+                            priorityText = 'Very Low';
+                            priorityStyle = 'background: #1e3a8a; color: white;'; // Dark blue (ice cold)
+                            break;
+                        default:
+                            // Keep Medium gray as default
+                            break;
+                    }
+
+                    // Format time values (convert minutes to hours if needed)
+                    const formatTime = (minutes) => {
+                        if (!minutes || minutes === 0) return '0h';
+                        if (minutes < 60) return `${minutes}m`;
+                        const hours = Math.floor(minutes / 60);
+                        const mins = minutes % 60;
+                        return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+                    };
+
+                    // Due date with color coding
+                    let dueDateDisplay = task.dueDate || '-';
+                    let dueDateStyle = 'color: #666;';
+                    if (task.dueDateStatus === 'overdue') {
+                        dueDateStyle = 'background: #fee2e2; color: #dc2626; padding: 0.2rem 0.4rem; border-radius: 4px;';
+                    } else if (task.dueDateStatus === 'due-soon') {
+                        dueDateStyle = 'background: #fef3c7; color: #d97706; padding: 0.2rem 0.4rem; border-radius: 4px;';
+                    }
+
+                    html += `
+                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                            <td style="width: 32px; text-align: center; padding: 0.4rem;">
+                                <div class="task-checkbox ${task.completed ? 'completed' : ''}"></div>
+                            </td>
+                            <td style="width: 60px; padding: 0.6rem; font-family: monospace; font-size: 0.8rem; color: #666;">
+                                ${task.taskNumber}
+                            </td>
+                            <td style="width: 288px; padding: 0.6rem; overflow: hidden;">
+                                <div class="task-title ${task.completed ? 'completed' : ''}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">${task.title}</div>
+                            </td>
+                            <td style="width: 80px; padding: 0.6rem; text-align: center;">
+                                <span style="padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600; ${priorityStyle}">${priorityText}</span>
+                            </td>
+                            <td style="width: 120px; padding: 0.6rem; overflow: hidden;">
+                                <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; color: #666;">${task.assignedTo}</div>
+                            </td>
+                            <td style="width: 90px; padding: 0.6rem; font-size: 0.8rem; color: #666;">
+                                ${task.startDate || '-'}
+                            </td>
+                            <td style="width: 90px; padding: 0.6rem; font-size: 0.8rem;">
+                                <span style="${dueDateStyle}">${dueDateDisplay}</span>
+                            </td>
+                            <td style="width: 90px; padding: 0.6rem; font-size: 0.8rem; color: #666;">
+                                ${task.completeDate || '-'}
+                            </td>
+                            <td style="width: 80px; padding: 0.6rem; text-align: center; font-size: 0.8rem; color: #666;">
+                                ${formatTime(task.timeAllocated)}
+                            </td>
+                            <td style="width: 80px; padding: 0.6rem; text-align: center; font-size: 0.8rem; color: #666;">
+                                ${formatTime(task.timeTracked)}
+                            </td>
+                        </tr>
+                    `;
+                });
+
+                html += `
+                        </tbody>
+                    </table>
+                `;
+                
+                // Add "Load More" button or summary
+                if (data.hasMore) {
+                    html += `
+                        <div style="text-align: center;">
+                            <button class="load-more-btn" onclick="loadMoreTasks('${projectId}', ${data.nextOffset})">
+                                Load More Tasks (${data.remaining} remaining)
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                html += `
+                    <div class="task-summary">
+                        Showing ${data.displayedTasks} of ${data.totalTasks} tasks
+                    </div>
+                `;
+                
+                taskSection.innerHTML = html;
+                
+            } catch (error) {
+                console.error(`Error loading tasks for project ${projectId}:`, error);
+                const taskSection = document.getElementById(`tasks-${projectId}`);
+                taskSection.innerHTML = '<div style="color: #dc2626; padding: 1rem;">Error loading tasks</div>';
+            }
+        }
+
+        async function loadMoreTasks(projectId, offset) {
+            await loadProjectTasks(projectId, offset);
+        }
+
+        function updateManagerDropdown() {
+            const select = document.getElementById('managerSelect');
+            const currentValue = select.value;
+            
+            select.innerHTML = '<option value="">All Team Members</option>';
+            
+            availableManagers.forEach(manager => {
+                const option = document.createElement('option');
+                option.value = manager.id;
+                option.textContent = manager.name;
+                select.appendChild(option);
+            });
+            
+            if (currentValue) {
+                select.value = currentValue;
+            }
+        }
+
+        function updateStats(data) {
+            const projects = data.projects || [];
+            const totalProjects = projects.length;
+            const idleProjects = projects.filter(p => p.daysIdle > 0).length;
+            
+            // Calculate health statistics
+            const healthyProjects = projects.filter(p => {
+                const health = getProjectHealth(p);
+                return health.status === 'healthy';
+            }).length;
+            
+            const warningProjects = projects.filter(p => {
+                const health = getProjectHealth(p);
+                return health.status === 'warning';
+            }).length;
+            
+            const criticalProjects = projects.filter(p => {
+                const health = getProjectHealth(p);
+                return health.status === 'critical';
+            }).length;
+
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${totalProjects}</div>
+                    <div class="stat-label">Total Projects</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #10b981;">${healthyProjects}</div>
+                    <div class="stat-label">Healthy Projects</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #f59e0b;">${warningProjects}</div>
+                    <div class="stat-label">Warning Projects</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #ef4444;">${criticalProjects}</div>
+                    <div class="stat-label">Critical Projects</div>
+                </div>
+            `;
+        }
+
+        function getDaysClass(daysIdle) {
+            if (daysIdle > 30) return 'days-badge urgent';
+            if (daysIdle > 14) return 'days-badge warning';
+            return 'days-badge';
+        }
+
+        // Event listeners - wrapped in DOMContentLoaded to ensure elements exist
+        document.addEventListener('DOMContentLoaded', function() {
+            // Original event listeners
+            document.getElementById('managerSelect').addEventListener('change', loadProjects);
+            document.getElementById('sortSelect').addEventListener('change', (e) => {
+                currentSort.field = e.target.value;
+                currentSort.direction = 'desc';
+                loadProjects();
+            });
+            
+            // Add filter event listeners safely
+            const healthFilter = document.getElementById('healthFilter');
+            const statusFilter = document.getElementById('statusFilter');
+            const customStatusFilter = document.getElementById('customStatusFilter');
+            
+            if (healthFilter) {
+                healthFilter.addEventListener('change', () => {
+                    updateStats();
+                    renderProjects(getFilteredProjects());
+                });
+            }
+            
+            if (statusFilter) {
+                statusFilter.addEventListener('change', () => {
+                    updateStats();
+                    renderProjects(getFilteredProjects());
+                });
+            }
+            
+            if (customStatusFilter) {
+                customStatusFilter.addEventListener('change', () => {
+                    updateStats();
+                    renderProjects(getFilteredProjects());
+                });
+            }
+            
+            // Load projects after everything is set up
+            loadProjects();
+        });
+    </script>
+</body>
+</html>

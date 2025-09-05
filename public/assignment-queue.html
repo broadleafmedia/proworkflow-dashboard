@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProWorkflow Assignment Queue</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f7fa;
+            color: #333;
+            line-height: 1.4;
+            font-size: 14px;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .header p {
+            font-size: 1rem;
+        }
+
+        .nav-bar {
+            background: white;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .nav-link {
+            color: #667eea;
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            transition: background-color 0.2s ease;
+            font-weight: 500;
+        }
+
+        .nav-link:hover {
+            background: #f1f5f9;
+        }
+
+        .nav-link.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .controls {
+            background: white;
+            padding: 1.5rem 2rem;
+            margin: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        .control-group label {
+            font-weight: 600;
+            color: #555;
+            font-size: 0.8rem;
+        }
+
+        select, button {
+            padding: 0.6rem 0.8rem;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            background: white;
+            transition: all 0.3s ease;
+        }
+
+        select:focus, button:focus {
+            outline: none;
+            border-color: #e74c3c;
+            box-shadow: 0 0 0 3px rgba(231, 76, 60, 0.1);
+        }
+
+        button {
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            min-width: 120px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .stats {
+            display: flex;
+            gap: 1rem;
+            margin: 0 1.5rem 1.5rem 1.5rem;
+            flex-wrap: wrap;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            flex: 1;
+            min-width: 180px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #e74c3c;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #666;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+
+        .requests-container {
+            margin: 0 1.5rem 2rem 1.5rem;
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .requests-header {
+            background: #f8fafc;
+            padding: 1.2rem 1.5rem;
+            border-bottom: 1px solid #e1e8ed;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .requests-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .urgency-legend {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .legend-text {
+            color: #666;
+        }
+
+        .legend-text.urgent { color: #e74c3c; font-weight: 600; }
+        .legend-text.soon { color: #f39c12; font-weight: 600; }
+        .legend-text.normal { color: #27ae60; font-weight: 600; }
+
+        .requests-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+        }
+
+        .requests-table th {
+            background: #f8fafc;
+            padding: 0.8rem 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #555;
+            border-bottom: 2px solid #e1e8ed;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+            font-size: 0.8rem;
+        }
+
+        .requests-table td {
+            padding: 0.8rem 1rem;
+            border-bottom: 1px solid #f1f5f9;
+            vertical-align: middle;
+        }
+
+        .requests-table tbody tr:hover {
+            background: #f8fafc;
+        }
+
+        .request-id {
+            font-family: 'Monaco', 'Menlo', monospace;
+            background: #f1f5f9;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            color: #475569;
+        }
+
+        .request-title {
+            font-weight: 600;
+            color: white;
+            background: #e74c3c;
+            padding: 0.4rem 0.8rem;
+            border-radius: 16px;
+            cursor: pointer;
+            display: inline-block;
+            font-size: 0.85rem;
+            transition: background-color 0.2s ease;
+        }
+
+        .request-title:hover {
+            background: #c0392b;
+            color: white;
+        }
+
+        .due-badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 16px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            display: inline-block;
+            min-width: 70px;
+            text-align: center;
+        }
+
+        .due-badge.overdue {
+            background: #e74c3c;
+        }
+
+        .due-badge.urgent {
+            background: #f39c12;
+        }
+
+        .due-badge.normal {
+            background: #27ae60;
+        }
+
+        .due-badge.none {
+            background: #95a5a6;
+        }
+
+        .recipient-badge {
+            background: #ecf0f1;
+            color: #2c3e50;
+            padding: 0.3rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+        }
+
+        .assign-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: auto;
+        }
+
+        .assign-btn:hover {
+            background: #229954;
+            transform: translateY(-1px);
+        }
+
+        .expand-btn {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 0.5rem;
+            cursor: pointer;
+            border-radius: 6px;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+        }
+
+        .expand-btn:hover {
+            background: #e2e8f0;
+            border-color: #cbd5e1;
+            transform: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .expand-arrow {
+            width: 0;
+            height: 0;
+            border-left: 8px solid #e74c3c;
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            transition: transform 0.3s ease;
+            transform-origin: 35% 50%;
+        }
+
+        .expand-btn.expanded .expand-arrow {
+            transform: rotate(90deg);
+        }
+
+        .request-details {
+            display: none;
+            background: #fafbfc;
+            padding: 1.5rem;
+            border-left: 4px solid #e74c3c;
+        }
+
+        .request-details.expanded {
+            display: block;
+        }
+
+        .detail-section {
+            margin-bottom: 1rem;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+            margin-bottom: 0.5rem;
+        }
+
+        .detail-content {
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .assignment-panel {
+            background: white;
+            border: 2px solid #e1e8ed;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .assignment-controls {
+            display: flex;
+            gap: 1rem;
+            align-items: end;
+            flex-wrap: wrap;
+        }
+
+        .pwf-assign-btn {
+            background: #27ae60;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            min-width: auto;
+        }
+
+        .pwf-assign-btn:hover {
+            background: #229954;
+            transform: translateY(-1px);
+        }
+
+        .custom-form-2col {
+            border: 1px solid #e1e8ed;
+            padding: 1rem;
+            background: #f8fafc;
+            border-radius: 6px;
+            display: flex;
+            gap: 2rem;
+        }
+
+        .custom-form-col {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .custom-form-field {
+            margin-bottom: 0.8rem;
+        }
+
+        .custom-form-label {
+            color: #555;
+            display: block;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 0.2rem;
+        }
+
+        .custom-form-value {
+            color: #666;
+            margin-left: 0.5rem;
+            font-size: 0.9rem;
+            line-height: 1.3;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 3rem;
+            color: #e74c3c;
+            font-size: 1.1rem;
+        }
+
+        .loading::after {
+            content: '';
+            width: 20px;
+            height: 20px;
+            border: 2px solid #e74c3c;
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-left: 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .no-requests {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>ProWorkflow Assignment Queue</h1>
+        <p>Review and assign pending project requests</p>
+    </div>
+
+    <div class="nav-bar">
+        <a href="/" class="nav-link">Dashboard</a>
+        <a href="/assignment-queue" class="nav-link active">Assignment Queue</a>
+    </div>
+
+    <div class="controls">
+        <div class="control-group">
+            <label for="groupFilter">Filter by Group</label>
+            <select id="groupFilter">
+                <option value="">All Groups</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label for="urgencyFilter">Filter by Urgency</label>
+            <select id="urgencyFilter">
+                <option value="">All Requests</option>
+                <option value="overdue">Overdue</option>
+                <option value="urgent">Due Soon (≤7 days)</option>
+                <option value="normal">Normal</option>
+                <option value="none">No Due Date</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>&nbsp;</label>
+            <button onclick="loadRequests()">Refresh Queue</button>
+        </div>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="requests-container">
+        <div class="requests-header">
+            <div class="requests-title" id="requestsTitle">Pending Project Requests</div>
+            <div class="urgency-legend">
+                <span class="legend-text overdue">Overdue</span>
+                <span class="legend-text urgent">Due Soon (≤7 days)</span>
+                <span class="legend-text normal">Normal</span>
+            </div>
+        </div>
+        
+        <div class="requests-table-container">
+            <div id="requestsContent">
+                <div class="loading">Loading requests...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let allRequests = [];
+        let availableGroups = [];
+        let expandedRequests = new Set();
+        let teamMembers = [];
+
+        // Your team manager IDs for assignment
+        const YOUR_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801];
+
+        function openInProWorkflow(requestId) {
+            // Open the specific request in ProWorkflow's assignment interface
+            const pwfUrl = `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobrequests&jobrequests_currentjobrequestid=${requestId}`;
+            window.open(pwfUrl, '_blank');
+            
+            console.log(`Opening request ${requestId} in ProWorkflow: ${pwfUrl}`);
+        }
+
+        async function loadRequests() {
+            document.getElementById('requestsContent').innerHTML = '<div class="loading">Loading requests...</div>';
+            
+            try {
+                console.log('Loading project requests...');
+                
+                const response = await fetch('/api/rest/project-requests');
+                const data = await response.json();
+                
+                allRequests = data.projectrequests || [];
+                
+                updateGroupDropdown();
+                updateStats(data);
+                renderRequests(getFilteredRequests());
+                
+                console.log(`Loaded ${allRequests.length} project requests`);
+                
+            } catch (error) {
+                console.error('Error loading requests:', error);
+                document.getElementById('requestsContent').innerHTML = 
+                    '<div class="no-requests">Error loading requests. Please try again.</div>';
+            }
+        }
+
+        function getFilteredRequests() {
+            const groupFilter = document.getElementById('groupFilter').value;
+            const urgencyFilter = document.getElementById('urgencyFilter').value;
+            
+            return allRequests.filter(request => {
+                // Group filter
+                if (groupFilter && request.recipientgroupname !== groupFilter) {
+                    return false;
+                }
+                
+                // Urgency filter
+                if (urgencyFilter) {
+                    const urgency = getRequestUrgency(request);
+                    if (urgency.status !== urgencyFilter) {
+                        return false;
+                    }
+                }
+                
+                return true;
+            });
+        }
+
+        function getRequestUrgency(request) {
+            if (!request.duedate) {
+                return { status: 'none', text: 'No Due Date', class: 'none' };
+            }
+            
+            const dueDate = new Date(request.duedate);
+            const today = new Date();
+            const daysUntilDue = Math.floor((dueDate - today) / (1000 * 60 * 60 * 24));
+            
+            if (daysUntilDue < 0) {
+                return { status: 'overdue', text: `${Math.abs(daysUntilDue)} days overdue`, class: 'overdue' };
+            } else if (daysUntilDue <= 7) {
+                return { status: 'urgent', text: `${daysUntilDue} days left`, class: 'urgent' };
+            } else {
+                return { status: 'normal', text: `${daysUntilDue} days left`, class: 'normal' };
+            }
+        }
+
+        function renderRequests(requests) {
+            if (!requests || requests.length === 0) {
+                document.getElementById('requestsContent').innerHTML = 
+                    '<div class="no-requests">No requests found with current filters.</div>';
+                return;
+            }
+
+            const container = document.getElementById('requestsContent');
+            container.innerHTML = '';
+            
+            const table = document.createElement('table');
+            table.className = 'requests-table';
+            
+            // Create header
+            const thead = document.createElement('thead');
+            const headerRow = document.createElement('tr');
+            
+            const headers = ['', 'ID', 'Request Title', 'Client', 'Group', 'Submitted To', 'Submitted', 'Due Date', 'Actions'];
+            headers.forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                headerRow.appendChild(th);
+            });
+
+            thead.appendChild(headerRow);
+            table.appendChild(thead);
+            
+            // Create body
+            const tbody = document.createElement('tbody');
+            
+            requests.forEach((request, index) => {
+                // Main request row
+                const row = document.createElement('tr');
+                
+                // Expand button cell
+                const expandCell = document.createElement('td');
+                const expandBtn = document.createElement('button');
+                expandBtn.className = 'expand-btn';
+                expandBtn.onclick = () => toggleRequestDetails(request.id, expandBtn);
+                
+                const arrow = document.createElement('div');
+                arrow.className = 'expand-arrow';
+                expandBtn.appendChild(arrow);
+                expandCell.appendChild(expandBtn);
+                row.appendChild(expandCell);
+                
+                // Get urgency info
+                const urgencyInfo = getRequestUrgency(request);
+                
+                // Request data cells
+                const cells = [
+                    { content: request.id, class: 'request-id' },
+                    { content: request.title, class: 'request-title', onclick: () => toggleRequestDetails(request.id, expandBtn) },
+                    { content: request.clientname },
+                    { content: request.recipientgroupname, class: 'recipient-badge' },
+                    { content: request.recipientname, class: 'recipient-badge' },
+                    { content: new Date(request.submitteddate).toLocaleDateString() },
+                    { content: request.duedate ? new Date(request.duedate).toLocaleDateString() : '-' },
+                    { content: 'Open in PWF', class: 'assign-btn', onclick: () => openInProWorkflow(request.id) }
+                ];
+
+                cells.forEach(cellData => {
+                    const td = document.createElement('td');
+                    
+                    if (cellData.onclick) {
+                        const button = document.createElement('button');
+                        button.className = cellData.class || '';
+                        button.textContent = cellData.content;
+                        button.onclick = cellData.onclick;
+                        td.appendChild(button);
+                    } else {
+                        const span = document.createElement('span');
+                        if (cellData.class) span.className = cellData.class;
+                        span.textContent = cellData.content;
+                        td.appendChild(span);
+                    }
+                    
+                    row.appendChild(td);
+                });
+
+                tbody.appendChild(row);
+                
+                // Details section row (hidden by default)
+                const detailsRow = document.createElement('tr');
+                const detailsCell = document.createElement('td');
+                detailsCell.colSpan = 9;
+                
+                const detailsSection = document.createElement('div');
+                detailsSection.className = 'request-details';
+                detailsSection.id = `details-${request.id}`;
+                
+                detailsCell.appendChild(detailsSection);
+                detailsRow.appendChild(detailsCell);
+                tbody.appendChild(detailsRow);
+            });
+            
+            table.appendChild(tbody);
+            container.appendChild(table);
+        }
+
+        async function toggleRequestDetails(requestId, button) {
+            const detailsSection = document.getElementById(`details-${requestId}`);
+            
+            if (expandedRequests.has(requestId)) {
+                // Collapse
+                detailsSection.classList.remove('expanded');
+                button.classList.remove('expanded');
+                expandedRequests.delete(requestId);
+            } else {
+                // Expand and load details
+                button.classList.add('expanded');
+                detailsSection.classList.add('expanded');
+                expandedRequests.add(requestId);
+                
+                detailsSection.innerHTML = '<div class="loading">Loading request details...</div>';
+                await loadRequestDetails(requestId);
+            }
+        }
+
+        async function loadRequestDetails(requestId) {
+            try {
+                const response = await fetch(`/api/rest/project-requests/${requestId}`);
+                const data = await response.json();
+                const request = data.projectrequest;
+                
+                const detailsSection = document.getElementById(`details-${requestId}`);
+                
+                // Parse custom form data if it exists
+                let customFormSection = '';
+                if (request.customformcontent && request.customformcontent.trim()) {
+                    customFormSection = `
+                        <div class="detail-section">
+                            <div class="detail-label">Custom Form: ${request.customformtitle || 'Form Data'}</div>
+                            <div class="detail-content">
+                                ${parseCustomFormData(request.customformcontent)}
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                // Add files section if files exist
+                let filesSection = '';
+                if (request.files && request.files.length > 0) {
+                    const filesList = request.files.map(file => 
+                        `<li><a href="${file.link}" target="_blank" style="color: #667eea; text-decoration: none;">${file.name}</a> (${formatFileSize(file.size)})</li>`
+                    ).join('');
+                    
+                    filesSection = `
+                        <div class="detail-section">
+                            <div class="detail-label">Attached Files (${request.files.length})</div>
+                            <div class="detail-content">
+                                <ul style="margin-left: 1rem;">${filesList}</ul>
+                            </div>
+                        </div>
+                    `;
+                }
+                
+                detailsSection.innerHTML = `
+                    <div class="detail-section">
+                        <div class="detail-label">Description</div>
+                        <div class="detail-content">${request.description || 'No description provided'}</div>
+                    </div>
+                    
+                    ${customFormSection}
+                    
+                    ${filesSection}
+                    
+                    <div class="detail-section">
+                        <div class="detail-label">Request Details</div>
+                        <div class="detail-content">
+                            <strong>Template:</strong> ${request.templatename || 'N/A'}<br>
+                            <strong>Last Modified:</strong> ${new Date(request.lastmodifiedutc).toLocaleString()}
+                        </div>
+                    </div>
+                    
+                    <div class="assignment-panel">
+                        <div class="detail-label">Assign This Request</div>
+                        <div class="assignment-controls">
+                            <button onclick="openInProWorkflow(${requestId})" class="pwf-assign-btn">
+                                Open in ProWorkflow to Assign
+                            </button>
+                            <p style="color: #666; margin-top: 0.5rem; font-size: 0.85rem;">
+                                This will open the request in ProWorkflow where you can assign it with full task templates and workflow options.
+                            </p>
+                        </div>
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error(`Error loading details for request ${requestId}:`, error);
+                const detailsSection = document.getElementById(`details-${requestId}`);
+                detailsSection.innerHTML = '<div style="color: #e74c3c; padding: 1rem;">Error loading request details</div>';
+            }
+        }
+
+        function parseCustomFormData(htmlContent) {
+            // Create a temporary element to parse the HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = htmlContent;
+            
+            // Extract form fields and their values
+            const inputs = tempDiv.querySelectorAll('input, select, textarea');
+            const formFields = [];
+            
+            inputs.forEach(input => {
+                let label = '';
+                let value = '';
+                
+                // Find the label for this input
+                const labelElement = tempDiv.querySelector(`label[for="${input.id}"]`);
+                if (labelElement) {
+                    label = labelElement.textContent.replace(/\*/g, '').trim();
+                } else {
+                    // Look for nearby strong elements (common pattern)
+                    const parent = input.closest('div');
+                    if (parent) {
+                        const strongElement = parent.querySelector('strong');
+                        if (strongElement) {
+                            label = strongElement.textContent.replace(/\*/g, '').trim();
+                        }
+                    }
+                }
+                
+                // Get the value based on input type
+                if (input.type === 'checkbox' && input.checked) {
+                    value = input.value || 'Yes';
+                } else if (input.type === 'radio' && input.checked) {
+                    value = input.value;
+                } else if (input.tagName === 'SELECT') {
+                    const selectedOption = input.querySelector('option[selected]');
+                    if (selectedOption) {
+                        value = selectedOption.textContent;
+                    }
+                } else if (input.tagName === 'TEXTAREA' || input.type === 'text') {
+                    value = input.value || input.textContent;
+                } else if (input.tagName === 'SELECT' && input.hasAttribute('multiple')) {
+                    const selectedOptions = input.querySelectorAll('option[selected]');
+                    if (selectedOptions.length > 0) {
+                        value = Array.from(selectedOptions).map(opt => opt.textContent).join(', ');
+                    }
+                }
+                
+                // Only add if we have both label and value
+                if (label && value && value.trim()) {
+                    formFields.push({ label, value });
+                }
+            });
+            
+            // Format the extracted data in 2 columns with CSS classes
+            if (formFields.length > 0) {
+                const midpoint = Math.ceil(formFields.length / 2);
+                const leftColumn = formFields.slice(0, midpoint);
+                const rightColumn = formFields.slice(midpoint);
+                
+                const formatColumn = (fields) => {
+                    return fields.map(field => 
+                        `<div class="custom-form-field">
+                            <div class="custom-form-label">${field.label}:</div>
+                            <div class="custom-form-value">${field.value}</div>
+                        </div>`
+                    ).join('');
+                };
+                
+                return `
+                    <div class="custom-form-2col">
+                        <div class="custom-form-col">
+                            ${formatColumn(leftColumn)}
+                        </div>
+                        <div class="custom-form-col">
+                            ${formatColumn(rightColumn)}
+                        </div>
+                    </div>
+                `;
+            }
+            
+            return '<em>Custom form data could not be parsed</em>';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        function updateGroupDropdown() {
+            const select = document.getElementById('groupFilter');
+            const currentValue = select.value;
+            
+            // Get unique groups
+            const uniqueGroups = [...new Set(allRequests.map(r => r.recipientgroupname))].sort();
+            
+            select.innerHTML = '<option value="">All Groups</option>';
+            
+            uniqueGroups.forEach(group => {
+                const option = document.createElement('option');
+                option.value = group;
+                option.textContent = group;
+                select.appendChild(option);
+            });
+            
+            if (currentValue) {
+                select.value = currentValue;
+            }
+        }
+
+        function updateStats(data) {
+            const requests = data.projectrequests || [];
+            const totalRequests = requests.length;
+            
+            const overdueRequests = requests.filter(r => {
+                const urgency = getRequestUrgency(r);
+                return urgency.status === 'overdue';
+            }).length;
+            
+            const urgentRequests = requests.filter(r => {
+                const urgency = getRequestUrgency(r);
+                return urgency.status === 'urgent';
+            }).length;
+            
+            const avgWaitTime = requests.length > 0 ? 
+                Math.round(requests.reduce((sum, r) => {
+                    const submitted = new Date(r.submitteddate);
+                    const waitDays = Math.floor((new Date() - submitted) / (1000 * 60 * 60 * 24));
+                    return sum + waitDays;
+                }, 0) / requests.length) : 0;
+
+            document.getElementById('stats').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-number">${totalRequests}</div>
+                    <div class="stat-label">Total Requests</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #e74c3c;">${overdueRequests}</div>
+                    <div class="stat-label">Overdue</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #f39c12;">${urgentRequests}</div>
+                    <div class="stat-label">Due Soon</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #9b59b6;">${avgWaitTime}</div>
+                    <div class="stat-label">Avg Wait (days)</div>
+                </div>
+            `;
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('groupFilter').addEventListener('change', () => {
+                renderRequests(getFilteredRequests());
+                updateStats({ projectrequests: getFilteredRequests() });
+            });
+            
+            document.getElementById('urgencyFilter').addEventListener('change', () => {
+                renderRequests(getFilteredRequests());
+                updateStats({ projectrequests: getFilteredRequests() });
+            });
+            
+            // Load requests on page load
+            loadRequests();
+        });
+    </script>
+</body>
+</html>

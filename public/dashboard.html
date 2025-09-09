@@ -1089,58 +1089,61 @@
             return rootMessages;
         }
 
-        function renderThreadedMessages(threadedMessages) {
-            return threadedMessages.map(message => {
-                let messageHtml = `
-                    <div class="message-item">
-                        <img src="${message.authorimage}" alt="${message.authorname}" class="message-avatar" onerror="this.style.display='none'">
-                        <div class="message-content">
-                            <div class="message-header">
-                                <span class="message-author-name message-author ${message.authortype}">${message.authorname}</span>
-                                <span class="message-date">${new Date(message.date).toLocaleDateString()} ${new Date(message.date).toLocaleTimeString()}</span>
-                            </div>
-                            <div class="message-text">${stripHtmlTags(message.content)}</div>
-                            ${message.files && message.files.length > 0 ? `
-                                <div class="message-files">
-                                    ${message.files.map(file => `
-                                        <a href="${file.link}" target="_blank" class="message-file">
-                                            📎 ${file.name} (${formatFileSize(file.size)})
-                                        </a>
-                                    `).join('')}
-                                </div>
-                            ` : ''}
-                        </div>
+function renderThreadedMessages(threadedMessages, tasks = []) {
+    return threadedMessages.map(message => {
+        let messageHtml = `
+            <div class="message-item">
+                <img src="${message.authorimage}" alt="${message.authorname}" class="message-avatar" onerror="this.style.display='none'">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author-name message-author ${message.authortype}">${message.authorname}</span>
+                        <span class="message-date">${new Date(message.date).toLocaleDateString()} ${new Date(message.date).toLocaleTimeString()}</span>
                     </div>
-                `;
-                
-                // Render replies with indentation and threading indicator
-                if (message.replies && message.replies.length > 0) {
-                    messageHtml += message.replies.map(reply => `
-                        <div class="message-item thread-reply">
-                            <img src="${reply.authorimage}" alt="${reply.authorname}" class="message-avatar" onerror="this.style.display='none'">
-                            <div class="message-content">
-                                <div class="message-header">
-                                    <span class="message-author-name message-author ${reply.authortype}">${reply.authorname}</span>
-                                    <span class="message-date">${new Date(reply.date).toLocaleDateString()} ${new Date(reply.date).toLocaleTimeString()}</span>
-                                </div>
-                                <div class="message-text">${stripHtmlTags(reply.content)}</div>
-                                ${reply.files && reply.files.length > 0 ? `
-                                    <div class="message-files">
-                                        ${reply.files.map(file => `
-                                            <a href="${file.link}" target="_blank" class="message-file">
-                                                📎 ${file.name} (${formatFileSize(file.size)})
-                                            </a>
-                                        `).join('')}
-                                    </div>
-                                ` : ''}
-                            </div>
+                    <div class="message-text">${stripHtmlTags(message.content)}</div>
+                    ${message.files && message.files.length > 0 ? `
+                        <div class="message-files">
+                            ${message.files.map(file => `
+                                <a href="${file.link}" target="_blank" class="message-file">
+                                    📎 ${file.name} (${formatFileSize(file.size)})
+                                </a>
+                            `).join('')}
                         </div>
-                    `).join('');
-                }
-                
-                return messageHtml;
-            }).join('');
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        
+        // Add threaded replies with indentation
+        if (message.replies && message.replies.length > 0) {
+            const repliesHtml = message.replies.map(reply => `
+                <div class="message-item thread-reply">
+                    <img src="${reply.authorimage}" alt="${reply.authorname}" class="message-avatar" onerror="this.style.display='none'">
+                    <div class="message-content">
+                        <div class="message-header">
+                            <span class="message-author-name message-author ${reply.authortype}">${reply.authorname}</span>
+                            <span class="message-date">${new Date(reply.date).toLocaleDateString()} ${new Date(reply.date).toLocaleTimeString()}</span>
+                        </div>
+                        <div class="message-text">${stripHtmlTags(reply.content)}</div>
+                        ${reply.files && reply.files.length > 0 ? `
+                            <div class="message-files">
+                                ${reply.files.map(file => `
+                                    <a href="${file.link}" target="_blank" class="message-file">
+                                        📎 ${file.name} (${formatFileSize(file.size)})
+                                    </a>
+                                `).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+            
+            messageHtml += repliesHtml;
         }
+        
+        return messageHtml;
+    }).join('');
+}
+        
 
         function stripHtmlTags(html) {
             const tempDiv = document.createElement('div');

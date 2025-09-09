@@ -1442,42 +1442,22 @@ function renderThreadedMessages(threadedMessages, tasks = []) {
                 // Build project messages timeline
                 let projectMessagesHtml = '';
                 if (project && project.messages && project.messages.length > 0) {
-                    const recentMessages = project.messages
-                        .sort((a, b) => new Date(b.date) - new Date(a.date))
-                        .slice(0, 3);
-                    
-                    const hasMoreMessages = project.messages.length > 3;
-                    
-                    projectMessagesHtml = `
-                        <div class="message-timeline">
-                            <div class="timeline-header">
-                                <div class="timeline-title">Recent Project Messages (${project.messageCount} total)</div>
-                                ${hasMoreMessages ? `<a href="${project.projectUrl}" target="_blank" class="load-more-messages">View All in ProWorkflow</a>` : ''}
-                            </div>
-                            ${recentMessages.map(message => `
-                                <div class="message-item">
-                                    <img src="${message.authorimage}" alt="${message.authorname}" class="message-avatar" onerror="this.style.display='none'">
-                                    <div class="message-content">
-                                        <div class="message-header">
-                                            <span class="message-author-name message-author ${message.authortype}">${message.authorname}</span>
-                                            <span class="message-date">${new Date(message.date).toLocaleDateString()} ${new Date(message.date).toLocaleTimeString()}</span>
-                                        </div>
-                                        <div class="message-text">${stripHtmlTags(message.content).substring(0, 200)}${message.content.length > 200 ? '...' : ''}</div>
-                                        ${message.files && message.files.length > 0 ? `
-                                            <div class="message-files">
-                                                ${message.files.map(file => `
-                                                    <a href="${file.link}" target="_blank" class="message-file">
-                                                        📎 ${file.name} (${formatFileSize(file.size)})
-                                                    </a>
-                                                `).join('')}
-                                            </div>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    `;
-                }
+    const recentMessages = project.messages
+        .sort((a, b) => new Date(b.date) - new Date(a.date))
+        .slice(0, 3);
+    
+    const hasMoreMessages = project.messages.length > 3;
+    
+    projectMessagesHtml = `
+        <div class="message-timeline">
+            <div class="timeline-header">
+                <div class="timeline-title">Recent Project Messages (${project.messageCount} total)</div>
+                ${hasMoreMessages ? `<a href="${project.projectUrl}" target="_blank" class="load-more-messages">View All in ProWorkflow</a>` : ''}
+            </div>
+            ${renderThreadedMessages(buildMessageThreads(recentMessages), [])}
+        </div>
+    `;
+}
                 
                 // Build tasks table
                 let tasksHtml = '';
@@ -1630,7 +1610,7 @@ function renderThreadedMessages(threadedMessages, tasks = []) {
                         <div class="timeline-header">
                             <div class="timeline-title">Task-Specific Messages (${messages.length} total) - Threaded</div>
                         </div>
-                        ${renderThreadedMessages(threadedMessages)}
+${renderThreadedMessages(threadedMessages)}
                     </div>
                 `;
                 

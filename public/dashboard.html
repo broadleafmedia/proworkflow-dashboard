@@ -19,6 +19,16 @@
             font-size: 14px;
         }
 
+        /* MAIN CONTAINER - ADJUST FOR SIDEBAR */
+        .main-container {
+            transition: margin-right 0.3s ease;
+            margin-right: 0;
+        }
+
+        .main-container.chat-open {
+            margin-right: 350px;
+        }
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
@@ -121,6 +131,41 @@
             transform: translateY(0);
         }
 
+        /* COMMUNICATION LEGEND */
+        .communication-legend {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-left: auto;
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            font-size: 0.8rem;
+        }
+
+        .legend-title {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .legend-badge {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .legend-badge.active { background: #10b981; }
+        .legend-badge.normal { background: #f59e0b; }
+        .legend-badge.stale { background: #ef4444; }
+        .legend-badge.none { background: #94a3b8; }
+
         .stats {
             display: flex;
             gap: 1rem;
@@ -155,7 +200,6 @@
             margin: 0 1.5rem 2rem 1.5rem;
             background: white;
             border-radius: 12px;
-            overflow: hidden;
             box-shadow: 0 4px 20px rgba(0,0,0,0.08);
         }
 
@@ -174,31 +218,6 @@
             font-size: 1.3rem;
             font-weight: 600;
             color: #333;
-        }
-
-        .health-legend {
-            display: flex;
-            gap: 1.5rem;
-            align-items: center;
-            font-size: 0.75rem;
-            font-weight: 500;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 0.4rem;
-        }
-
-        .legend-text {
-            color: #666;
-        }
-
-        .legend-text.healthy { color: #10b981; font-weight: 600; }
-        .legend-text.warning { color: #f59e0b; font-weight: 600; }
-        .legend-text.critical { color: #ef4444; font-weight: 600; }
-
-        .projects-table-container {
         }
 
         .projects-table {
@@ -220,7 +239,6 @@
             font-size: 0.8rem;
         }
 
-        /* SORTABLE HEADER STYLES */
         .projects-table th.sortable {
             cursor: pointer;
             user-select: none;
@@ -252,6 +270,8 @@
             padding: 0.8rem 1rem;
             border-bottom: 1px solid #f1f5f9;
             vertical-align: middle;
+            word-wrap: break-word;
+            max-width: 200px;
         }
 
         .projects-table tbody tr:hover {
@@ -273,6 +293,8 @@
             font-weight: 500;
             transition: color 0.2s ease;
             font-size: 0.85rem;
+            word-wrap: break-word;
+            display: block;
         }
 
         .project-link:hover {
@@ -291,8 +313,7 @@
             text-align: center;
         }
 
-        /* HEALTH BADGE STYLES */
-        .health-badge {
+        .communication-badge {
             padding: 0.4rem 0.8rem;
             border-radius: 16px;
             font-size: 0.75rem;
@@ -301,21 +322,50 @@
             display: inline-block;
             min-width: 70px;
             text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
         }
 
-        .health-badge.healthy {
+        .communication-badge:hover {
+            transform: scale(1.05);
+        }
+
+        .communication-badge.active {
             background: #10b981;
             color: white;
         }
 
-        .health-badge.warning {
+        .communication-badge.normal {
             background: #f59e0b;
             color: white;
         }
 
-        .health-badge.critical {
+        .communication-badge.stale {
             background: #ef4444;
             color: white;
+        }
+
+        .communication-badge.none {
+            background: #94a3b8;
+            color: white;
+        }
+
+        .last-message-info {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 0.2rem;
+        }
+
+        .message-author {
+            font-weight: 600;
+        }
+
+        .message-author.staff {
+            color: #2563eb;
+        }
+
+        .message-author.client {
+            color: #dc2626;
         }
 
         .days-badge {
@@ -337,7 +387,6 @@
             color: #d97706;
         }
 
-        /* EXPAND BUTTON STYLING - Enhanced square button */
         .expand-btn {
             background: #f8fafc;
             border: 1px solid #e2e8f0;
@@ -359,10 +408,6 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        .expand-btn:active {
-            background: #cbd5e1;
-        }
-
         .expand-arrow {
             width: 0;
             height: 0;
@@ -377,33 +422,161 @@
             transform: rotate(90deg);
         }
 
-        .expand-btn:hover .expand-arrow {
-            border-left-color: #4c63d2;
-        }
-
-        /* Task section styling */
-        .task-section {
+        .project-expansion {
             display: none;
-        }
-
-        .task-section.expanded {
-            display: block;
             background: #fafbfc;
-            padding: 1rem;
             border-left: 4px solid #667eea;
         }
 
-        .task-item {
+        .project-expansion.expanded {
+            display: block;
+        }
+
+        .expansion-content {
+            padding: 1.5rem;
+        }
+
+        /* MESSAGE TIMELINE STYLES */
+        .message-timeline {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .timeline-header {
             display: flex;
+            justify-content: space-between;
             align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .timeline-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 0.9rem;
+        }
+
+        .load-more-messages {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .load-more-messages:hover {
+            text-decoration: underline;
+        }
+
+        .message-item {
+            display: flex;
             gap: 0.8rem;
-            padding: 0.5rem 0;
-            border-bottom: 1px solid #e1e8ed;
+            padding: 0.8rem;
+            border-bottom: 1px solid #e2e8f0;
             font-size: 0.85rem;
         }
 
-        .task-item:last-child {
+        .message-item:last-child {
             border-bottom: none;
+        }
+
+        .message-item.thread-reply {
+            margin-left: 2rem;
+            background: #f8fafc;
+            border-left: 2px solid #cbd5e1;
+            border-radius: 0 8px 8px 0;
+            padding-left: 1rem;
+        }
+
+        .message-item.thread-reply::before {
+            content: '↳ ';
+            color: #9ca3af;
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+
+        .message-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .message-content {
+            flex: 1;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.4rem;
+        }
+
+        .message-author-name {
+            font-weight: 600;
+            font-size: 0.85rem;
+        }
+
+        .message-date {
+            color: #64748b;
+            font-size: 0.75rem;
+        }
+
+        .message-text {
+            color: #475569;
+            line-height: 1.4;
+        }
+
+        .message-files {
+            margin-top: 0.5rem;
+        }
+
+        .message-file {
+            display: inline-block;
+            background: #e0e7ff;
+            color: #3730a3;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            text-decoration: none;
+            margin-right: 0.5rem;
+            margin-top: 0.3rem;
+        }
+
+        .message-file:hover {
+            background: #c7d2fe;
+        }
+
+        /* TASK TABLE STYLES */
+        .tasks-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+
+        .tasks-table th {
+            background: #f1f5f9;
+            padding: 0.6rem;
+            text-align: left;
+            font-weight: 600;
+            color: #374151;
+            border-bottom: 2px solid #e2e8f0;
+            font-size: 0.75rem;
+        }
+
+        .tasks-table td {
+            padding: 0.6rem;
+            border-bottom: 1px solid #e2e8f0;
+            vertical-align: middle;
+        }
+
+        .tasks-table tbody tr:hover {
+            background: #f8fafc;
         }
 
         .task-checkbox {
@@ -431,14 +604,297 @@
         }
 
         .task-title {
-            flex: 1;
-            font-weight: 500;
+            font-weight: 600;
+            color: #374151;
+            word-wrap: break-word;
+            line-height: 1.3;
         }
 
-        .task-assignment {
-            color: #666;
-            font-size: 0.8rem;
-            margin-left: auto;
+        .task-title.completed {
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+
+        /* TASK MESSAGE MODAL STYLES */
+        .message-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 90%;
+            max-height: 80%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            font-weight: 600;
+            color: #374151;
+            font-size: 1.1rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #9ca3af;
+            min-width: auto;
+            padding: 0.5rem;
+        }
+
+        .modal-close:hover {
+            color: #374151;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        /* TASK MESSAGE BADGES */
+        .task-message-badge {
+            background: #3b82f6;
+            color: white;
+            padding: 0.3rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .task-message-badge:hover {
+            transform: scale(1.05);
+        }
+
+        .task-message-badge.active {
+            background: #10b981;
+        }
+
+        .task-message-badge.normal {
+            background: #f59e0b;
+        }
+
+        .task-message-badge.stale {
+            background: #ef4444;
+        }
+
+        .task-message-badge.none {
+            background: #94a3b8;
+            cursor: default;
+        }
+
+        .task-message-badge.none:hover {
+            transform: none;
+        }
+
+        /* RIGHT SIDEBAR CHAT */
+        .chat-trigger {
+            position: fixed;
+            top: 50%;
+            right: 20px;
+            transform: translateY(-50%);
+            width: 60px;
+            height: 60px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(102, 126, 234, 0.3);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+
+        .chat-trigger:hover {
+            transform: translateY(-50%) scale(1.05);
+            box-shadow: 0 6px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .chat-trigger.chat-open {
+            right: 370px;
+        }
+
+        .chat-sidebar {
+            position: fixed;
+            top: 0;
+            right: -350px;
+            width: 350px;
+            height: 100vh;
+            background: white;
+            box-shadow: -4px 0 20px rgba(0,0,0,0.08);
+            transition: right 0.3s ease;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-sidebar.open {
+            right: 0;
+        }
+
+        .chat-sidebar-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1.5rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .chat-sidebar-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .chat-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.2rem;
+            min-width: auto;
+        }
+
+        .chat-close:hover {
+            transform: none;
+            box-shadow: none;
+            opacity: 0.8;
+        }
+
+        .chat-sidebar-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1.5rem;
+            padding-top: 2rem;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: #f8fafc;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            max-height: calc(100vh - 250px);
+        }
+
+        .chat-message {
+            max-width: 80%;
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+
+        .chat-message.user {
+            align-self: flex-end;
+            background: #667eea;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+
+        .chat-message.agent {
+            align-self: flex-start;
+            background: white;
+            color: #374151;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .chat-input-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 0.8rem;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            resize: none;
+            min-height: 40px;
+            max-height: 100px;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .chat-send {
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.8rem 1rem;
+            cursor: pointer;
+            font-size: 0.9rem;
+            min-width: auto;
+            transition: background-color 0.2s ease;
+        }
+
+        .chat-send:hover {
+            background: #5a67d8;
+            transform: none;
+            box-shadow: none;
+        }
+
+        .chat-send:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        .typing-indicator {
+            align-self: flex-start;
+            background: white;
+            color: #374151;
+            padding: 0.8rem 1rem;
+            border-radius: 12px;
+            border-bottom-left-radius: 4px;
+            font-style: italic;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .loading {
@@ -472,55 +928,123 @@
             color: #666;
             font-size: 1.1rem;
         }
+
+        .no-messages {
+            text-align: center;
+            padding: 2rem;
+            color: #9ca3af;
+            font-style: italic;
+        }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>ProWorkflow Team Dashboard</h1>
-        <p>Track your team's projects and activity</p>
-    </div>
-
-    <div class="controls">
-        <div class="control-group">
-            <label for="managerSelect">Filter by Manager</label>
-            <select id="managerSelect">
-                <option value="">All Team Members</option>
-            </select>
+    <div class="main-container" id="mainContainer">
+        <div class="header">
+            <h1>ProWorkflow Team Dashboard</h1>
+            <p>Track your team's projects and communication</p>
         </div>
 
-        <div class="control-group">
-            <label for="sortSelect">Sort by</label>
-            <select id="sortSelect">
-                <option value="idle">Most Idle First</option>
-                <option value="age">Oldest Projects</option>
-                <option value="manager">Manager Name</option>
-                <option value="number">Project Number</option>
-                <option value="status">Status</option>
-                <option value="title">Project Title</option>
-            </select>
+        <div class="nav-bar">
+            <a href="/" class="nav-link active">Dashboard</a>
+            <a href="/assignment-queue" class="nav-link">Assignment Queue</a>
         </div>
 
-        <div class="control-group">
-            <label>&nbsp;</label>
-            <button onclick="loadProjects()">Refresh Data</button>
-        </div>
-    </div>
+        <div class="controls">
+            <div class="control-group">
+                <label for="managerSelect">Filter by Manager</label>
+                <select id="managerSelect">
+                    <option value="">All Team Members</option>
+                </select>
+            </div>
 
-    <div class="stats" id="stats"></div>
+            <div class="control-group">
+                <label for="sortSelect">Sort by</label>
+                <select id="sortSelect">
+                    <option value="idle">Most Idle First</option>
+                    <option value="age">Oldest Projects</option>
+                    <option value="communication">Communication Stale</option>
+                    <option value="manager">Manager Name</option>
+                    <option value="number">Project Number</option>
+                    <option value="status">Status</option>
+                    <option value="title">Project Title</option>
+                </select>
+            </div>
 
-    <div class="projects-container">
-        <div class="projects-header">
-            <div class="projects-title" id="projectsTitle">Team Projects</div>
-            <div class="health-legend">
-                <span class="legend-text healthy">Healthy (&lt;5 days)</span>
-                <span class="legend-text warning">Warning (5-7 days)</span>
-                <span class="legend-text critical">Critical (8+ days or overdue)</span>
+            <div class="control-group">
+                <label>&nbsp;</label>
+                <button onclick="loadProjects()">Refresh Data</button>
+            </div>
+
+            <!-- COMMUNICATION REFERENCE LEGEND -->
+            <div class="communication-legend">
+                <div class="legend-title">Communication Health:</div>
+                <div class="legend-item">
+                    <div class="legend-badge active"></div>
+                    <span>Active (≤2 days)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-badge normal"></div>
+                    <span>Normal (3-7 days)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-badge stale"></div>
+                    <span>Stale (>7 days)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-badge none"></div>
+                    <span>No Messages</span>
+                </div>
             </div>
         </div>
-        
-        <div class="projects-table-container">
-            <div id="projectsContent">
-                <div class="loading">Loading projects...</div>
+
+        <div class="stats" id="stats"></div>
+
+        <div class="projects-container">
+            <div class="projects-header">
+                <div class="projects-title" id="projectsTitle">Team Projects</div>
+            </div>
+            
+            <div class="projects-table-container">
+                <div id="projectsContent">
+                    <div class="loading">Loading projects...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- CHAT TRIGGER BUTTON -->
+    <button class="chat-trigger" id="chatTrigger" onclick="toggleChatSidebar()">
+        💬
+    </button>
+
+    <!-- RIGHT SIDEBAR CHAT -->
+    <div class="chat-sidebar" id="chatSidebar">
+        <div class="chat-sidebar-header">
+            <h3 class="chat-sidebar-title">Assistant</h3>
+            <button class="chat-close" onclick="toggleChatSidebar()">&times;</button>
+        </div>
+        <div class="chat-sidebar-content">
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-message agent">
+                    Hi! I'm your ProWorkflow AI assistant. I can help you analyze projects, identify bottlenecks, suggest actions, and answer questions about your dashboard data. What can I help you with?
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <textarea class="chat-input" id="chatInput" placeholder="Ask me about your projects..." rows="1"></textarea>
+                <button class="chat-send" id="chatSend" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TASK MESSAGE MODAL -->
+    <div id="taskMessageModal" class="message-modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-title" id="taskModalTitle">Task Messages</div>
+                <button class="modal-close" onclick="closeTaskMessageModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="taskModalBody">
+                <div class="loading">Loading messages...</div>
             </div>
         </div>
     </div>
@@ -530,6 +1054,107 @@
         let availableManagers = [];
         let expandedProjects = new Set();
         let currentSort = { field: 'idle', direction: 'desc' };
+        let chatHistory = [];
+
+        // THREADING HELPER FUNCTIONS
+        function buildMessageThreads(messages) {
+            const messageMap = new Map();
+            const rootMessages = [];
+            
+            // Sort messages chronologically first
+            const sortedMessages = messages.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            // Create map of all messages
+            sortedMessages.forEach(message => {
+                messageMap.set(message.id, {
+                    ...message,
+                    replies: []
+                });
+            });
+            
+            // Build thread structure using originalmessageid
+            sortedMessages.forEach(message => {
+                const messageObj = messageMap.get(message.id);
+                
+                if (message.originalmessageid && messageMap.has(message.originalmessageid)) {
+                    // This is a reply - add to parent's replies
+                    const parent = messageMap.get(message.originalmessageid);
+                    parent.replies.push(messageObj);
+                } else {
+                    // This is a root message
+                    rootMessages.push(messageObj);
+                }
+            });
+            
+            return rootMessages;
+        }
+
+        function renderThreadedMessages(threadedMessages) {
+            return threadedMessages.map(message => {
+                let messageHtml = `
+                    <div class="message-item">
+                        <img src="${message.authorimage}" alt="${message.authorname}" class="message-avatar" onerror="this.style.display='none'">
+                        <div class="message-content">
+                            <div class="message-header">
+                                <span class="message-author-name message-author ${message.authortype}">${message.authorname}</span>
+                                <span class="message-date">${new Date(message.date).toLocaleDateString()} ${new Date(message.date).toLocaleTimeString()}</span>
+                            </div>
+                            <div class="message-text">${stripHtmlTags(message.content)}</div>
+                            ${message.files && message.files.length > 0 ? `
+                                <div class="message-files">
+                                    ${message.files.map(file => `
+                                        <a href="${file.link}" target="_blank" class="message-file">
+                                            📎 ${file.name} (${formatFileSize(file.size)})
+                                        </a>
+                                    `).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+                
+                // Render replies with indentation and threading indicator
+                if (message.replies && message.replies.length > 0) {
+                    messageHtml += message.replies.map(reply => `
+                        <div class="message-item thread-reply">
+                            <img src="${reply.authorimage}" alt="${reply.authorname}" class="message-avatar" onerror="this.style.display='none'">
+                            <div class="message-content">
+                                <div class="message-header">
+                                    <span class="message-author-name message-author ${reply.authortype}">${reply.authorname}</span>
+                                    <span class="message-date">${new Date(reply.date).toLocaleDateString()} ${new Date(reply.date).toLocaleTimeString()}</span>
+                                </div>
+                                <div class="message-text">${stripHtmlTags(reply.content)}</div>
+                                ${reply.files && reply.files.length > 0 ? `
+                                    <div class="message-files">
+                                        ${reply.files.map(file => `
+                                            <a href="${file.link}" target="_blank" class="message-file">
+                                                📎 ${file.name} (${formatFileSize(file.size)})
+                                            </a>
+                                        `).join('')}
+                                    </div>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                return messageHtml;
+            }).join('');
+        }
+
+        function stripHtmlTags(html) {
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            return tempDiv.textContent || tempDiv.innerText || '';
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
 
         async function loadProjects() {
             const manager = document.getElementById('managerSelect').value;
@@ -541,7 +1166,6 @@
                 const params = new URLSearchParams();
                 
                 if (manager) params.append('manager', manager);
-                // Use currentSort instead of dropdown
                 if (currentSort.field) params.append('sort', currentSort.field);
                 
                 if (params.toString()) {
@@ -556,12 +1180,14 @@
                 allProjects = data.projects || [];
                 availableManagers = data.availableManagers || [];
                 
+                console.log('✅ Projects loaded:', allProjects.length);
+                
                 updateManagerDropdown();
                 updateStats(data);
                 renderProjects(allProjects);
                 
             } catch (error) {
-                console.error('Error loading projects:', error);
+                console.error('❌ Error loading projects:', error);
                 document.getElementById('projectsContent').innerHTML = 
                     '<div class="no-projects">Error loading projects. Please try again.</div>';
             }
@@ -570,7 +1196,6 @@
         function sortByHeader(field) {
             console.log('Sorting by header:', field);
             
-            // Toggle direction if same field
             if (currentSort.field === field) {
                 currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
             } else {
@@ -578,41 +1203,53 @@
                 currentSort.direction = 'asc';
             }
             
-            // Update dropdown to match
             const dropdown = document.getElementById('sortSelect');
             dropdown.value = field;
             
             loadProjects();
         }
 
-        function getProjectHealth(project) {
-            // Red: Overdue projects OR projects idle 8+ days
-            if (project.isOverdue || project.daysIdle >= 8) {
+        function getProjectCommunication(project) {
+            if (!project.lastMessageDate) {
                 return {
-                    status: 'critical',
-                    text: project.isOverdue ? 'Overdue' : 'Stale',
-                    class: 'critical'
+                    status: 'none',
+                    text: 'No Messages',
+                    class: 'none',
+                    extraInfo: ''
                 };
             }
             
-            // Yellow: Projects idle 5-7 days
-            if (project.daysIdle >= 5 && project.daysIdle <= 7) {
-                return {
-                    status: 'warning',
-                    text: 'Warning',
-                    class: 'warning'
-                };
+            const days = project.daysSinceLastMessage;
+            let status, text, className;
+            
+            if (days <= 2) {
+                status = 'active';
+                text = 'Active';
+                className = 'active';
+            } else if (days <= 7) {
+                status = 'normal';
+                text = 'Normal';
+                className = 'normal';
+            } else {
+                status = 'stale';
+                text = 'Stale';
+                className = 'stale';
             }
             
-            // Green: Active projects (under 5 days idle)
+            const authorClass = project.lastMessageType === 'staff' ? 'staff' : 'client';
+            const extraInfo = `<span class="message-author ${authorClass}">${project.lastMessageAuthor}</span> • ${days}d ago`;
+            
             return {
-                status: 'healthy',
-                text: 'Healthy',
-                class: 'healthy'
+                status: status,
+                text: text,
+                class: className,
+                extraInfo: extraInfo
             };
         }
 
         function renderProjects(projects) {
+            console.log('🎨 Rendering projects:', projects.length);
+            
             if (!projects || projects.length === 0) {
                 document.getElementById('projectsContent').innerHTML = 
                     '<div class="no-projects">No projects found with current filters.</div>';
@@ -625,11 +1262,10 @@
             const table = document.createElement('table');
             table.className = 'projects-table';
             
-            // Create header with clickable sorting - UPDATED with Health column
+            // Create header with clickable sorting
             const thead = document.createElement('thead');
             const headerRow = document.createElement('tr');
             
-            // Define headers with sort fields - ADDED Health column
             const headerConfig = [
                 { text: '', field: null },
                 { text: 'Project #', field: 'number' },
@@ -638,7 +1274,7 @@
                 { text: 'Custom Status', field: 'status' },
                 { text: 'Start', field: null },
                 { text: 'Due Date', field: 'dueDate' },
-                { text: 'Health', field: 'health' }, // NEW Health column
+                { text: 'Communication', field: 'communication' },
                 { text: 'Days Idle', field: 'idle' }
             ];
 
@@ -650,7 +1286,6 @@
                     th.className = 'sortable';
                     th.onclick = () => sortByHeader(config.field);
                     
-                    // Add sort indicator
                     const indicator = document.createElement('span');
                     indicator.className = 'sort-indicator';
                     
@@ -677,6 +1312,12 @@
                 // Main project row
                 const row = document.createElement('tr');
                 
+                // Add RUSH highlighting
+                const isRush = project.customStatus && project.customStatus.toLowerCase().includes('rush');
+                if (isRush) {
+                    row.style.backgroundColor = '#fef3c7';
+                }
+                
                 // Expand button cell
                 const expandCell = document.createElement('td');
                 const expandBtn = document.createElement('button');
@@ -689,18 +1330,26 @@
                 expandCell.appendChild(expandBtn);
                 row.appendChild(expandCell);
                 
-                // Get health info for this project
-                const healthInfo = getProjectHealth(project);
+                // Get communication info for this project
+                const communicationInfo = getProjectCommunication(project);
                 
-                // Project data cells - UPDATED with Health column and dash for due date
+                // Project data cells
                 const cells = [
                     { content: project.number, class: 'project-number' },
-                    { content: project.title, link: project.projectUrl, class: 'project-link' },
+                    { 
+                        content: project.title, 
+                        link: project.projectUrl, 
+                        class: 'project-link'
+                    },
                     { content: project.owner },
                     { content: project.customStatus, style: `background: ${project.statusColor}; color: white;`, class: 'status-badge' },
                     { content: project.startDate || 'No start date' },
-                    { content: project.dueDate || '-' },  // FIXED: Now shows dash for empty due dates
-                    { content: healthInfo.text, class: `health-badge ${healthInfo.class}` }, // NEW Health badge
+                    { content: project.dueDate || '-' },
+                    { 
+                        content: communicationInfo.text, 
+                        class: `communication-badge ${communicationInfo.class}`,
+                        extraContent: communicationInfo.extraInfo
+                    },
                     { content: project.daysIdle > 0 ? project.daysIdle + ' days' : 'Active', class: getDaysClass(project.daysIdle) }
                 ];
 
@@ -720,6 +1369,13 @@
                         if (cellData.style) span.setAttribute('style', cellData.style);
                         span.textContent = cellData.content;
                         td.appendChild(span);
+                        
+                        if (cellData.extraContent) {
+                            const extraDiv = document.createElement('div');
+                            extraDiv.className = 'last-message-info';
+                            extraDiv.innerHTML = cellData.extraContent;
+                            td.appendChild(extraDiv);
+                        }
                     }
                     
                     row.appendChild(td);
@@ -727,222 +1383,422 @@
 
                 tbody.appendChild(row);
                 
-                // Task section row (hidden by default)
-                const taskRow = document.createElement('tr');
-                const taskCell = document.createElement('td');
-                taskCell.colSpan = 9; // Updated for Health column (expand + 8 data columns)
+                // Project expansion row (hidden by default)
+                const expansionRow = document.createElement('tr');
+                const expansionCell = document.createElement('td');
+                expansionCell.colSpan = 9;
                 
-                const taskSection = document.createElement('div');
-                taskSection.className = 'task-section';
-                taskSection.id = `tasks-${project.projectId}`;
+                const expansionSection = document.createElement('div');
+                expansionSection.className = 'project-expansion';
+                expansionSection.id = `expansion-${project.projectId}`;
                 
-                taskCell.appendChild(taskSection);
-                taskRow.appendChild(taskCell);
-                tbody.appendChild(taskRow);
+                expansionCell.appendChild(expansionSection);
+                expansionRow.appendChild(expansionCell);
+                tbody.appendChild(expansionRow);
             });
             
             table.appendChild(tbody);
             container.appendChild(table);
+            
+            console.log('✅ Projects rendered successfully');
         }
 
         async function toggleProject(projectId, button) {
-            const taskSection = document.getElementById(`tasks-${projectId}`);
+            const expansionSection = document.getElementById(`expansion-${projectId}`);
             
             if (expandedProjects.has(projectId)) {
                 // Collapse
-                taskSection.classList.remove('expanded');
+                expansionSection.classList.remove('expanded');
                 button.classList.remove('expanded');
                 expandedProjects.delete(projectId);
             } else {
-                // Expand and load tasks
+                // Expand and load content
                 button.classList.add('expanded');
-                taskSection.classList.add('expanded');
+                expansionSection.classList.add('expanded');
                 expandedProjects.add(projectId);
                 
-                taskSection.innerHTML = '<div class="loading">Loading tasks...</div>';
-                await loadProjectTasks(projectId);
+                expansionSection.innerHTML = '<div class="expansion-content"><div class="loading">Loading project details...</div></div>';
+                await loadProjectExpansion(projectId);
             }
         }
 
-        // Store loaded tasks per project to handle "Load More"
-        const projectTasks = new Map();
-
-        async function loadProjectTasks(projectId, offset = 0) {
+        async function loadProjectExpansion(projectId) {
             try {
-                const taskSection = document.getElementById(`tasks-${projectId}`);
+                console.log(`🔍 Loading expansion for project ${projectId}`);
                 
-                // Show loading for initial load or append loading for "Load More"
-                if (offset === 0) {
-                    taskSection.innerHTML = `
-                        <div class="loading">
-                            Loading tasks...
-                            <div class="progress-info">Fetching first 20 task assignments</div>
-                        </div>
-                    `;
-                    projectTasks.set(projectId, []); // Reset stored tasks
-                } else {
-                    // For "Load More", show loading at the bottom
-                    const loadMoreBtn = taskSection.querySelector('.load-more-btn');
-                    if (loadMoreBtn) {
-                        loadMoreBtn.textContent = 'Loading...';
-                        loadMoreBtn.disabled = true;
-                    }
-                }
+                const expansionSection = document.getElementById(`expansion-${projectId}`);
+                const project = allProjects.find(p => p.projectId == projectId);
                 
-                const response = await fetch(`/api/rest/project/${projectId}/tasks?limit=20&offset=${offset}`);
-                const data = await response.json();
+                // Load project tasks and messages
+                const tasksResponse = await fetch(`/api/rest/project/${projectId}/tasks?limit=50`);
+                const tasksData = await tasksResponse.json();
+                const tasks = tasksData.tasks || [];
                 
-                if (!data.tasks || data.tasks.length === 0) {
-                    if (offset === 0) {
-                        taskSection.innerHTML = '<div style="padding: 1rem; color: #666;">No tasks found</div>';
-                    }
-                    return;
-                }
-
-                // Get existing tasks or start fresh
-                const existingTasks = projectTasks.get(projectId) || [];
-                const allTasks = [...existingTasks, ...data.tasks];
-                projectTasks.set(projectId, allTasks);
-
-                // Enhanced task table with narrower expand column
-                let html = `
-                    <table style="width: 1200px; border-collapse: collapse; table-layout: fixed;">
-                        <thead>
-                            <tr>
-                                <th style="width: 32px; text-align: center; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;"></th>
-                                <th style="width: 60px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Task #</th>
-                                <th style="width: 288px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Task Title</th>
-                                <th style="width: 80px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Priority</th>
-                                <th style="width: 120px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Assigned To</th>
-                                <th style="width: 90px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Start Date</th>
-                                <th style="width: 90px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Due Date</th>
-                                <th style="width: 90px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Completed</th>
-                                <th style="width: 80px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Time Alloc</th>
-                                <th style="width: 80px; background: #f1f5f9; padding: 0.6rem; border-bottom: 2px solid #e2e8f0; font-size: 0.75rem;">Time Spent</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                `;
+                console.log(`📋 Loaded ${tasks.length} tasks for project ${projectId}`);
                 
-                allTasks.forEach(task => {
-                    // Priority display - match ProWorkflow's color scheme
-                    let priorityText = 'Medium';
-                    let priorityStyle = 'background: #9ca3af; color: white;'; // Gray for Medium (default)
+                // Build project messages timeline
+                let projectMessagesHtml = '';
+                if (project && project.messages && project.messages.length > 0) {
+                    const recentMessages = project.messages
+                        .sort((a, b) => new Date(b.date) - new Date(a.date))
+                        .slice(0, 3);
                     
-                    switch(task.priority) {
-                        case 1:
-                            priorityText = 'Very High';
-                            priorityStyle = 'background: #dc2626; color: white;'; // Red
-                            break;
-                        case 2:
-                            priorityText = 'High';
-                            priorityStyle = 'background: #f97316; color: white;'; // Orange
-                            break;
-                        case 3:
-                            priorityText = 'Medium';
-                            priorityStyle = 'background: #9ca3af; color: white;'; // Gray (default)
-                            break;
-                        case 4:
-                            priorityText = 'Low';
-                            priorityStyle = 'background: #3b82f6; color: white;'; // Blue
-                            break;
-                        case 5:
-                            priorityText = 'Very Low';
-                            priorityStyle = 'background: #1e3a8a; color: white;'; // Dark blue (ice cold)
-                            break;
-                        default:
-                            // Keep Medium gray as default
-                            break;
-                    }
-
-                    // Format time values (convert minutes to hours if needed)
-                    const formatTime = (minutes) => {
-                        if (!minutes || minutes === 0) return '0h';
-                        if (minutes < 60) return `${minutes}m`;
-                        const hours = Math.floor(minutes / 60);
-                        const mins = minutes % 60;
-                        return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
-                    };
-
-                    // Due date with color coding
-                    let dueDateDisplay = task.dueDate || '-';
-                    let dueDateStyle = 'color: #666;';
-                    if (task.dueDateStatus === 'overdue') {
-                        dueDateStyle = 'background: #fee2e2; color: #dc2626; padding: 0.2rem 0.4rem; border-radius: 4px;';
-                    } else if (task.dueDateStatus === 'due-soon') {
-                        dueDateStyle = 'background: #fef3c7; color: #d97706; padding: 0.2rem 0.4rem; border-radius: 4px;';
-                    }
-
-                    html += `
-                        <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="width: 32px; text-align: center; padding: 0.4rem;">
-                                <div class="task-checkbox ${task.completed ? 'completed' : ''}"></div>
-                            </td>
-                            <td style="width: 60px; padding: 0.6rem; font-family: monospace; font-size: 0.8rem; color: #666;">
-                                ${task.taskNumber}
-                            </td>
-                            <td style="width: 288px; padding: 0.6rem; overflow: hidden;">
-                                <div class="task-title ${task.completed ? 'completed' : ''}" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600;">${task.title}</div>
-                            </td>
-                            <td style="width: 80px; padding: 0.6rem; text-align: center;">
-                                <span style="padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600; ${priorityStyle}">${priorityText}</span>
-                            </td>
-                            <td style="width: 120px; padding: 0.6rem; overflow: hidden;">
-                                <div style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 0.8rem; color: #666;">${task.assignedTo}</div>
-                            </td>
-                            <td style="width: 90px; padding: 0.6rem; font-size: 0.8rem; color: #666;">
-                                ${task.startDate || '-'}
-                            </td>
-                            <td style="width: 90px; padding: 0.6rem; font-size: 0.8rem;">
-                                <span style="${dueDateStyle}">${dueDateDisplay}</span>
-                            </td>
-                            <td style="width: 90px; padding: 0.6rem; font-size: 0.8rem; color: #666;">
-                                ${task.completeDate || '-'}
-                            </td>
-                            <td style="width: 80px; padding: 0.6rem; text-align: center; font-size: 0.8rem; color: #666;">
-                                ${formatTime(task.timeAllocated)}
-                            </td>
-                            <td style="width: 80px; padding: 0.6rem; text-align: center; font-size: 0.8rem; color: #666;">
-                                ${formatTime(task.timeTracked)}
-                            </td>
-                        </tr>
-                    `;
-                });
-
-                html += `
-                        </tbody>
-                    </table>
-                `;
-                
-                // Add "Load More" button or summary
-                if (data.hasMore) {
-                    html += `
-                        <div style="text-align: center;">
-                            <button class="load-more-btn" onclick="loadMoreTasks('${projectId}', ${data.nextOffset})">
-                                Load More Tasks (${data.remaining} remaining)
-                            </button>
+                    const hasMoreMessages = project.messages.length > 3;
+                    
+                    projectMessagesHtml = `
+                        <div class="message-timeline">
+                            <div class="timeline-header">
+                                <div class="timeline-title">Recent Project Messages (${project.messageCount} total)</div>
+                                ${hasMoreMessages ? `<a href="${project.projectUrl}" target="_blank" class="load-more-messages">View All in ProWorkflow</a>` : ''}
+                            </div>
+                            ${recentMessages.map(message => `
+                                <div class="message-item">
+                                    <img src="${message.authorimage}" alt="${message.authorname}" class="message-avatar" onerror="this.style.display='none'">
+                                    <div class="message-content">
+                                        <div class="message-header">
+                                            <span class="message-author-name message-author ${message.authortype}">${message.authorname}</span>
+                                            <span class="message-date">${new Date(message.date).toLocaleDateString()} ${new Date(message.date).toLocaleTimeString()}</span>
+                                        </div>
+                                        <div class="message-text">${stripHtmlTags(message.content).substring(0, 200)}${message.content.length > 200 ? '...' : ''}</div>
+                                        ${message.files && message.files.length > 0 ? `
+                                            <div class="message-files">
+                                                ${message.files.map(file => `
+                                                    <a href="${file.link}" target="_blank" class="message-file">
+                                                        📎 ${file.name} (${formatFileSize(file.size)})
+                                                    </a>
+                                                `).join('')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
                         </div>
                     `;
                 }
                 
-                html += `
-                    <div class="task-summary">
-                        Showing ${data.displayedTasks} of ${data.totalTasks} tasks
+                // Build tasks table
+                let tasksHtml = '';
+                if (tasks.length > 0) {
+                    tasksHtml = `
+                        <table class="tasks-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 40px;"></th>
+                                    <th style="width: 80px;">Task #</th>
+                                    <th style="width: 300px;">Task Title</th>
+                                    <th style="width: 100px;">Priority</th>
+                                    <th style="width: 150px;">Assigned To</th>
+                                    <th style="width: 100px;">Due Date</th>
+                                    <th style="width: 100px;">Messages</th>
+                                    <th style="width: 80px;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${tasks.map(task => {
+                                    let priorityText = 'Medium';
+                                    let priorityStyle = 'background: #9ca3af; color: white;';
+                                    
+                                    switch(task.priority) {
+                                        case 1:
+                                            priorityText = 'Very High';
+                                            priorityStyle = 'background: #dc2626; color: white;';
+                                            break;
+                                        case 2:
+                                            priorityText = 'High';
+                                            priorityStyle = 'background: #f97316; color: white;';
+                                            break;
+                                        case 3:
+                                            priorityText = 'Medium';
+                                            priorityStyle = 'background: #9ca3af; color: white;';
+                                            break;
+                                        case 4:
+                                            priorityText = 'Low';
+                                            priorityStyle = 'background: #3b82f6; color: white;';
+                                            break;
+                                        case 5:
+                                            priorityText = 'Very Low';
+                                            priorityStyle = 'background: #1e3a8a; color: white;';
+                                            break;
+                                    }
+
+                                    let dueDateDisplay = task.dueDate || '-';
+                                    let dueDateStyle = 'color: #666;';
+                                    if (task.dueDateStatus === 'overdue') {
+                                        dueDateStyle = 'background: #fee2e2; color: #dc2626; padding: 0.2rem 0.4rem; border-radius: 4px;';
+                                    } else if (task.dueDateStatus === 'due-soon') {
+                                        dueDateStyle = 'background: #fef3c7; color: #d97706; padding: 0.2rem 0.4rem; border-radius: 4px;';
+                                    }
+
+                                    // Task message badge
+                                    let messageBadge = '';
+                                    if (task.taskMessageCount > 0) {
+                                        const health = task.taskCommunicationHealth || 'normal';
+                                        messageBadge = `
+                                            <span class="task-message-badge ${health}" onclick="openTaskMessages(${task.id}, '${task.title.replace(/'/g, "\\'")}', 'task')" title="Task-specific messages">
+                                                💬 ${task.taskMessageCount}
+                                            </span>
+                                        `;
+                                    } else {
+                                        messageBadge = '<span class="task-message-badge none" title="No task-specific messages">💬 -</span>';
+                                    }
+
+                                    return `
+                                        <tr>
+                                            <td>
+                                                <div class="task-checkbox ${task.completed ? 'completed' : ''}"></div>
+                                            </td>
+                                            <td style="font-family: monospace; font-size: 0.8rem; color: #666;">
+                                                ${task.taskNumber}
+                                            </td>
+                                            <td>
+                                                <div class="task-title ${task.completed ? 'completed' : ''}">${task.title}</div>
+                                            </td>
+                                            <td style="text-align: center;">
+                                                <span style="padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600; ${priorityStyle}">${priorityText}</span>
+                                            </td>
+                                            <td style="font-size: 0.8rem; color: #666;">
+                                                ${task.assignedTo}
+                                            </td>
+                                            <td style="font-size: 0.8rem;">
+                                                <span style="${dueDateStyle}">${dueDateDisplay}</span>
+                                            </td>
+                                            <td style="text-align: center;">
+                                                ${messageBadge}
+                                            </td>
+                                            <td style="font-size: 0.8rem; color: #666;">
+                                                ${task.status}
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                        <div style="margin-top: 1rem; color: #666; font-size: 0.8rem;">
+                            Showing ${tasks.length} of ${tasksData.totalTasks} tasks
+                        </div>
+                    `;
+                } else {
+                    tasksHtml = '<div class="no-messages">No tasks found</div>';
+                }
+                
+                expansionSection.innerHTML = `
+                    <div class="expansion-content">
+                        ${projectMessagesHtml}
+                        ${tasksHtml}
                     </div>
                 `;
                 
-                taskSection.innerHTML = html;
+                console.log(`✅ Expansion loaded for project ${projectId}`);
                 
             } catch (error) {
-                console.error(`Error loading tasks for project ${projectId}:`, error);
-                const taskSection = document.getElementById(`tasks-${projectId}`);
-                taskSection.innerHTML = '<div style="color: #dc2626; padding: 1rem;">Error loading tasks</div>';
+                console.error(`❌ Error loading expansion for project ${projectId}:`, error);
+                const expansionSection = document.getElementById(`expansion-${projectId}`);
+                expansionSection.innerHTML = '<div class="expansion-content"><div style="color: #dc2626; padding: 1rem;">Error loading project details</div></div>';
             }
         }
 
-        async function loadMoreTasks(projectId, offset) {
-            await loadProjectTasks(projectId, offset);
+        // TASK MESSAGE FUNCTIONS
+        async function openTaskMessages(taskId, taskTitle, type) {
+            const modal = document.getElementById('taskMessageModal');
+            const modalTitle = document.getElementById('taskModalTitle');
+            const modalBody = document.getElementById('taskModalBody');
+            
+            modalTitle.textContent = `💬 ${taskTitle}`;
+            modalBody.innerHTML = '<div class="loading">Loading task messages...</div>';
+            modal.style.display = 'flex';
+            
+            try {
+                console.log(`🔍 Loading threaded messages for task ${taskId}`);
+                
+                const response = await fetch(`/api/rest/task/${taskId}/messages`);
+                const data = await response.json();
+                const messages = data.messages || [];
+                
+                if (messages.length === 0) {
+                    modalBody.innerHTML = '<div class="no-messages">No task-specific messages found.<br><small>All communication for this task may be in the project-level messages.</small></div>';
+                    return;
+                }
+                
+                // Build threaded conversation structure
+                const threadedMessages = buildMessageThreads(messages);
+                
+                modalBody.innerHTML = `
+                    <div class="message-timeline">
+                        <div class="timeline-header">
+                            <div class="timeline-title">Task-Specific Messages (${messages.length} total) - Threaded</div>
+                        </div>
+                        ${renderThreadedMessages(threadedMessages)}
+                    </div>
+                `;
+                
+            } catch (error) {
+                console.error(`❌ Error loading messages for task ${taskId}:`, error);
+                modalBody.innerHTML = '<div style="color: #dc2626; padding: 1rem;">Error loading task messages</div>';
+            }
         }
+
+        function closeTaskMessageModal() {
+            document.getElementById('taskMessageModal').style.display = 'none';
+        }
+
+        // CHAT SIDEBAR FUNCTIONALITY
+        function toggleChatSidebar() {
+            const sidebar = document.getElementById('chatSidebar');
+            const trigger = document.getElementById('chatTrigger');
+            const mainContainer = document.getElementById('mainContainer');
+            
+            if (sidebar.classList.contains('open')) {
+                // Close sidebar
+                sidebar.classList.remove('open');
+                trigger.classList.remove('chat-open');
+                mainContainer.classList.remove('chat-open');
+            } else {
+                // Open sidebar
+                sidebar.classList.add('open');
+                trigger.classList.add('chat-open');
+                mainContainer.classList.add('chat-open');
+                document.getElementById('chatInput').focus();
+            }
+        }
+
+        async function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const messages = document.getElementById('chatMessages');
+            const sendButton = document.getElementById('chatSend');
+            
+            const userMessage = input.value.trim();
+            if (!userMessage) return;
+            
+            // Add user message to chat
+            const userMessageDiv = document.createElement('div');
+            userMessageDiv.className = 'chat-message user';
+            userMessageDiv.textContent = userMessage;
+            messages.appendChild(userMessageDiv);
+            
+            // Clear input and disable send button
+            input.value = '';
+            sendButton.disabled = true;
+            
+            // Add typing indicator
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'typing-indicator';
+            typingDiv.textContent = 'AI is thinking...';
+            messages.appendChild(typingDiv);
+            
+            // Scroll to bottom
+            messages.scrollTop = messages.scrollHeight;
+            
+// REPLACE THIS SECTION IN YOUR sendMessage() function:
+try {
+    // Send to chat API
+    const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            message: userMessage,
+            context: {
+                projects: allProjects.length,
+                currentPage: 'dashboard'
+            }
+        })
+    });
+    
+    const data = await response.json();
+    
+    // Remove typing indicator
+    messages.removeChild(typingDiv);
+    
+    // Add AI response
+    const aiMessageDiv = document.createElement('div');
+    aiMessageDiv.className = 'chat-message agent';
+    aiMessageDiv.textContent = data.response;
+    messages.appendChild(aiMessageDiv);
+    
+    // Store in chat history
+    chatHistory.push({ user: userMessage, ai: data.response, timestamp: new Date() });
+                
+            } catch (error) {
+                // Remove typing indicator and show error
+                messages.removeChild(typingDiv);
+                
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'chat-message agent';
+                errorDiv.textContent = 'Sorry, I encountered an error. Please try again.';
+                messages.appendChild(errorDiv);
+                
+                console.error('Chat API Error:', error);
+            }
+            
+            // Re-enable send button and scroll to bottom
+            sendButton.disabled = false;
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function generateIntelligentResponse(message) {
+            const msg = message.toLowerCase();
+            
+            // Context-aware responses based on dashboard state
+            if (msg.includes('stale') || msg.includes('communication')) {
+                return "I can see your communication health data. Projects with red badges (>7 days) need immediate attention. Would you like me to identify which clients to follow up with?";
+            }
+            
+            if (msg.includes('overdue') || msg.includes('deadline')) {
+                return "I can help you identify overdue projects and tasks. Check the red deadline badges in your project list. Would you like me to prioritize them by urgency?";
+            }
+            
+            if (msg.includes('rush') || msg.includes('urgent')) {
+                return "RUSH projects are highlighted in yellow. I can help you track their progress and ensure they're moving through the workflow quickly.";
+            }
+            
+            if (msg.includes('assignment') || msg.includes('assign')) {
+                return "For assignment management, check your Assignment Queue at /assignment-queue. I can help you match projects to the right team members based on skills and workload.";
+            }
+            
+            if (msg.includes('task') || msg.includes('message')) {
+                return "Your dashboard shows task assignments and communication health. Click the blue expand arrows to see detailed task lists for each project, and click the 💬 badges to see threaded task messages.";
+            }
+            
+            if (msg.includes('dashboard') || msg.includes('help')) {
+                return "Your dashboard shows: 🟢 Active projects (≤2 days), 🟡 Normal (3-7 days), 🔴 Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
+            }
+            
+            if (msg.includes('hello') || msg.includes('hi')) {
+                return "Hi! I'm your ProWorkflow AI assistant. I can help you analyze project health, identify bottlenecks, suggest follow-ups, and navigate your dashboard. What would you like to know?";
+            }
+            
+            // Default intelligent response
+            return `I understand you're asking about "${message}". I can help you analyze your ProWorkflow data, identify communication gaps, track project health, and suggest actions. Your dashboard shows ${allProjects.length} projects with real-time communication monitoring. What specific insights would you like?`;
+        }
+
+        // Handle Enter key in chat input
+        document.addEventListener('DOMContentLoaded', function() {
+            const chatInput = document.getElementById('chatInput');
+            
+            chatInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // Auto-resize textarea
+            chatInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = Math.min(this.scrollHeight, 100) + 'px';
+            });
+
+            // Close modal when clicking outside
+            const modal = document.getElementById('taskMessageModal');
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === this) {
+                        closeTaskMessageModal();
+                    }
+                });
+            }
+        });
 
         function updateManagerDropdown() {
             const select = document.getElementById('managerSelect');
@@ -965,23 +1821,11 @@
         function updateStats(data) {
             const projects = data.projects || [];
             const totalProjects = projects.length;
-            const idleProjects = projects.filter(p => p.daysIdle > 0).length;
             
-            // Calculate health statistics
-            const healthyProjects = projects.filter(p => {
-                const health = getProjectHealth(p);
-                return health.status === 'healthy';
-            }).length;
-            
-            const warningProjects = projects.filter(p => {
-                const health = getProjectHealth(p);
-                return health.status === 'warning';
-            }).length;
-            
-            const criticalProjects = projects.filter(p => {
-                const health = getProjectHealth(p);
-                return health.status === 'critical';
-            }).length;
+            const activeCommProjects = projects.filter(p => p.communicationHealth === 'active').length;
+            const staleCommProjects = projects.filter(p => p.communicationHealth === 'stale').length;
+            const needingAttention = projects.filter(p => p.lastMessageType === 'client').length;
+            const waitingForClient = projects.filter(p => p.lastMessageType === 'staff').length;
 
             document.getElementById('stats').innerHTML = `
                 <div class="stat-card">
@@ -989,16 +1833,20 @@
                     <div class="stat-label">Total Projects</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" style="color: #10b981;">${healthyProjects}</div>
-                    <div class="stat-label">Healthy Projects</div>
+                    <div class="stat-number" style="color: #10b981;">${activeCommProjects}</div>
+                    <div class="stat-label">Active Communication</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" style="color: #f59e0b;">${warningProjects}</div>
-                    <div class="stat-label">Warning Projects</div>
+                    <div class="stat-number" style="color: #ef4444;">${staleCommProjects}</div>
+                    <div class="stat-label">Stale Communication</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" style="color: #ef4444;">${criticalProjects}</div>
-                    <div class="stat-label">Critical Projects</div>
+                    <div class="stat-number" style="color: #dc2626;">${needingAttention}</div>
+                    <div class="stat-label">Need Attention</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color: #f59e0b;">${waitingForClient}</div>
+                    <div class="stat-label">Waiting for Client</div>
                 </div>
             `;
         }
@@ -1009,41 +1857,16 @@
             return 'days-badge';
         }
 
-        // Event listeners - wrapped in DOMContentLoaded to ensure elements exist
+        // Event listeners
         document.addEventListener('DOMContentLoaded', function() {
-            // Original event listeners
+            console.log('🚀 Dashboard loaded, starting project load...');
+            
             document.getElementById('managerSelect').addEventListener('change', loadProjects);
             document.getElementById('sortSelect').addEventListener('change', (e) => {
                 currentSort.field = e.target.value;
                 currentSort.direction = 'desc';
                 loadProjects();
             });
-            
-            // Add filter event listeners safely
-            const healthFilter = document.getElementById('healthFilter');
-            const statusFilter = document.getElementById('statusFilter');
-            const customStatusFilter = document.getElementById('customStatusFilter');
-            
-            if (healthFilter) {
-                healthFilter.addEventListener('change', () => {
-                    updateStats();
-                    renderProjects(getFilteredProjects());
-                });
-            }
-            
-            if (statusFilter) {
-                statusFilter.addEventListener('change', () => {
-                    updateStats();
-                    renderProjects(getFilteredProjects());
-                });
-            }
-            
-            if (customStatusFilter) {
-                customStatusFilter.addEventListener('change', () => {
-                    updateStats();
-                    renderProjects(getFilteredProjects());
-                });
-            }
             
             // Load projects after everything is set up
             loadProjects();

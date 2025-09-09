@@ -1,17 +1,304 @@
 require('dotenv').config();
 // ProWorkflow Combined App - Dashboard + Assignment Queue
-// Single Heroku deployment serving both interfaces
+// Single Heroku deployment serving both interfaces with SECURITY
 
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
 
+// SECURITY IMPORTS
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
+const crypto = require('crypto');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
+// SECURITY MIDDLEWARE
+/*
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
+      imgSrc: ["'self'", "data:", "https:", "blob:"],
+      connectSrc: ["'self'"],
+      fontSrc: ["'self'", "https:", "data:"],
+      objectSrc: ["'none'"],
+      mediaSrc: ["'self'"],
+      frameSrc: ["'none'"]
+    }
+  }
+}));
+*/
+
+// RATE LIMITING
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: 'Too many requests, please try again later.',
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 5, // Limit login attempts
+  message: 'Too many login attempts, please try again later.',
+  skipSuccessfulRequests: true,
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50, // Limit API calls
+  message: 'API rate limit exceeded',
+});
+
+// Apply rate limiting
+app.use(generalLimiter);
+
+// SESSION MANAGEMENT
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'your_session_secret',
+  resave: false,
+  saveUninitialized: false,
+  cookie: {
+    secure: process.env.NODE_ENV === 'production',
+    httpOnly: true,
+    maxAge: 24 * 60 * 60 * 1000
+  },
+  name: 'pwf_session'
+}));
+
+// ADD THIS DEBUG LINE
+app.use((req, res, next) => {
+  console.log('? Session middleware - Path:', req.path, 'Session ID:', req.sessionID);
+  next();
+});
+
+// AUTHENTICATION SYSTEM
+const ADMIN_USERS = [
+  {
+    username: 'admin',
+    passwordHash: process.env.ADMIN_PASSWORD_HASH || '$2b$10$placeholder_hash',
+    role: 'admin'
+  },
+  {
+    username: 'viewer',
+    passwordHash: process.env.VIEWER_PASSWORD_HASH || '$2b$10$placeholder_hash',
+    role: 'viewer'
+  }
+];
+console.log('? ADMIN_USERS config:', ADMIN_USERS[0]);
+
+// Authentication middleware
+function requireAuth(req, res, next) {
+  console.log('? Auth check for:', req.path);
+  console.log('? Session authenticated:', req.session?.authenticated);
+  console.log('? Session data:', req.session);
+  
+  if (req.session && req.session.authenticated) {
+    console.log('? User is authenticated, allowing access');
+    return next();
+  } else {
+    console.log('? User not authenticated, redirecting to login');
+    return res.status(401).redirect('/login');
+  }
+}
+
+// BASIC MIDDLEWARE
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
+
+
+
+// APPLY AUTHENTICATION TO ALL ROUTES EXCEPT LOGIN
+app.use((req, res, next) => {
+  // Skip auth for login page and auth endpoints
+  if (req.path === '/login' || req.path.startsWith('/auth/') || req.path === '/health') {
+    return next();
+  }
+  
+  // Apply authentication to everything else
+  return requireAuth(req, res, next);
+});
+
+
+// SECURITY ROUTES
+app.get('/login', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>ProWorkflow Dashboard - Login</title>
+      <style>
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+          height: 100vh; 
+          margin: 0; 
+        }
+        .login-form { 
+          background: white; 
+          padding: 2rem; 
+          border-radius: 12px; 
+          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+          width: 300px;
+        }
+        .login-form h1 { 
+          text-align: center; 
+          color: #333; 
+          margin-bottom: 1.5rem;
+        }
+        .form-group { 
+          margin-bottom: 1rem; 
+        }
+        .form-group label { 
+          display: block; 
+          margin-bottom: 0.5rem; 
+          font-weight: 600;
+          color: #555;
+        }
+        .form-group input { 
+          width: 100%; 
+          padding: 0.75rem; 
+          border: 2px solid #e1e8ed; 
+          border-radius: 8px; 
+          font-size: 1rem;
+          box-sizing: border-box;
+        }
+        .form-group input:focus { 
+          outline: none; 
+          border-color: #667eea; 
+        }
+        .login-btn { 
+          width: 100%; 
+          padding: 0.75rem; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+          color: white; 
+          border: none; 
+          border-radius: 8px; 
+          font-size: 1rem; 
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s ease;
+        }
+        .login-btn:hover { 
+          transform: translateY(-2px); 
+        }
+        .error { 
+          color: #dc2626; 
+          text-align: center; 
+          margin-bottom: 1rem; 
+        }
+        .demo-info {
+          background: #e0f2fe;
+          border: 1px solid #0891b2;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+          font-size: 0.9rem;
+        }
+      </style>
+    </head>
+    <body>
+      <form class="login-form" method="POST" action="/auth/login">
+        <h1>? ProWorkflow Dashboard</h1>
+        ${req.query.error ? '<div class="error">Invalid credentials</div>' : ''}
+        
+        <div class="demo-info">
+          <strong>Demo Login:</strong><br>
+          Username: admin<br>
+          Password: demo123
+        </div>
+        
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="login-btn">Login</button>
+      </form>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  console.log('? Login attempt:');
+  console.log('  Username:', username);
+  console.log('  Password:', password);
+  
+  const user = ADMIN_USERS.find(u => u.username === username);
+  console.log('  User found:', !!user);
+  
+  if (user) {
+    console.log('  Stored hash:', user.passwordHash);
+    console.log('  Hash length:', user.passwordHash.length);
+    console.log('  Hash starts with $2b$:', user.passwordHash.startsWith('$2b$'));
+    
+    try {
+      const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+      console.log('  Password match result:', passwordMatch);
+      
+      if (passwordMatch) {
+        req.session.authenticated = true;
+        req.session.user = { username: user.username, role: user.role };
+        console.log('? Login successful');
+        res.redirect('/');
+      } else {
+        console.log('? Password mismatch');
+        res.redirect('/login?error=1');
+      }
+    } catch (error) {
+      console.log('? Bcrypt error:', error.message);
+      res.redirect('/login?error=1');
+    }
+  } else {
+    console.log('? User not found');
+    res.redirect('/login?error=1');
+  }
+});
+
+app.use('/', requireAuth);
+
+// ADD THIS DEBUGGING CODE
+app.use('/', (req, res, next) => {
+  console.log('DEBUG: Session data:', req.session);
+  console.log('DEBUG: Authenticated:', req.session?.authenticated);
+  console.log('DEBUG: URL requested:', req.url);
+  next();
+});
+
+
+app.post('/auth/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/login');
+});
+
+// Hide from search engines
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(`User-agent: *\nDisallow: /`);
+});
+
+
+// Static files and API rate limiting
 app.use(express.static('public'));
+app.use('/api', apiLimiter);
+
+
 
 // ProWorkflow API Configuration
 const PROWORKFLOW_CONFIG = {
@@ -74,6 +361,127 @@ async function rateLimitedRequest(requests, maxConcurrent = 10) {
   return Promise.all(results);
 }
 
+// ENHANCED: Smart task-relevant message filtering
+function getTaskContextMessages(projectMessages, task) {
+  if (!projectMessages || !projectMessages.length) {
+    return [];
+  }
+  
+  const taskStart = task.startdate ? new Date(task.startdate) : null;
+  const taskEnd = task.completedate ? new Date(task.completedate) : new Date();
+  const taskTitle = (task.name || '').toLowerCase();
+  const taskAssignees = (task.contacts || []).map(c => c.name?.toLowerCase()).filter(Boolean);
+  
+  console.log(`? Filtering messages for task "${task.name}"`);
+  console.log(`   Task assignees: [${taskAssignees.join(', ')}]`);
+  console.log(`   Task period: ${taskStart?.toDateString()} ? ${taskEnd?.toDateString()}`);
+  
+  // Extract meaningful keywords from task title (ignore common words)
+  const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must', 'shall', 'design', 'task', 'project', 'update', 'create', 'add', 'remove', 'edit', 'review'];
+  const taskKeywords = taskTitle
+    .split(/[\s\-_,()[\]{}|\\/:;"'<>?=+*&^%$#@!~`]+/)
+    .map(word => word.toLowerCase().trim())
+    .filter(word => word.length > 2 && !commonWords.includes(word))
+    .slice(0, 5); // Take top 5 keywords to avoid over-matching
+  
+  console.log(`   Task keywords: [${taskKeywords.join(', ')}]`);
+  
+  const relevantMessages = projectMessages.filter(message => {
+    const messageDate = new Date(message.date);
+    const messageContent = (message.content || '').toLowerCase();
+    const messageAuthor = (message.authorname || '').toLowerCase();
+    
+    let relevanceScore = 0;
+    let relevanceReasons = [];
+    
+    // 1. Date relevance (if we have task dates)
+    let withinTimeframe = true;
+    if (taskStart && messageDate < taskStart) {
+      const daysBefore = Math.floor((taskStart - messageDate) / (1000 * 60 * 60 * 24));
+      if (daysBefore > 7) { // Only include messages up to 7 days before task start
+        withinTimeframe = false;
+      }
+    }
+    if (task.completedate && messageDate > taskEnd) {
+      withinTimeframe = false;
+    }
+    
+    if (!withinTimeframe) {
+      return false; // Hard filter on date range
+    }
+    
+    // 2. Assignee mentions (high relevance)
+    for (const assignee of taskAssignees) {
+      if (messageContent.includes(assignee) || messageAuthor.includes(assignee)) {
+        relevanceScore += 10;
+        relevanceReasons.push(`mentions ${assignee}`);
+        break;
+      }
+    }
+    
+    // 3. @mentions (very high relevance)
+    if (messageContent.includes('@')) {
+      for (const assignee of taskAssignees) {
+        const firstName = assignee.split(' ')[0];
+        if (messageContent.includes(`@${firstName}`) || messageContent.includes(`@${assignee}`)) {
+          relevanceScore += 15;
+          relevanceReasons.push(`@mentions ${assignee}`);
+          break;
+        }
+      }
+    }
+    
+    // 4. Task keyword relevance (medium relevance)
+    let keywordMatches = 0;
+    for (const keyword of taskKeywords) {
+      if (messageContent.includes(keyword)) {
+        keywordMatches++;
+        relevanceScore += 3;
+      }
+    }
+    if (keywordMatches > 0) {
+      relevanceReasons.push(`${keywordMatches} keyword matches`);
+    }
+    
+    // 5. Author is task assignee (high relevance)
+    if (taskAssignees.some(assignee => messageAuthor.includes(assignee))) {
+      relevanceScore += 8;
+      relevanceReasons.push('author is assignee');
+    }
+    
+    // 6. File attachments related to task (medium relevance)
+    if (message.files && message.files.length > 0) {
+      const fileNames = message.files.map(f => (f.name || '').toLowerCase()).join(' ');
+      for (const keyword of taskKeywords) {
+        if (fileNames.includes(keyword)) {
+          relevanceScore += 5;
+          relevanceReasons.push('relevant file attachment');
+          break;
+        }
+      }
+    }
+    
+    // 7. Message is a response/follow-up (check for "re:" or question marks)
+    if (messageContent.includes('re:') || messageContent.includes('?') || messageContent.includes('please')) {
+      relevanceScore += 2;
+      relevanceReasons.push('appears to be response/question');
+    }
+    
+    // Relevance threshold: require at least score of 5 to be considered relevant
+    const isRelevant = relevanceScore >= 5;
+    
+    if (isRelevant) {
+      console.log(`   ? Relevant message (score: ${relevanceScore}): "${message.content.substring(0, 50)}..." - ${relevanceReasons.join(', ')}`);
+    }
+    
+    return isRelevant;
+  });
+  
+  console.log(`   ? Found ${relevantMessages.length} relevant messages out of ${projectMessages.length} total project messages`);
+  
+  return relevantMessages;
+}
+
 // Shared API Functions
 class ProWorkflowAPI {
   static async makeRequest(endpoint, method = 'GET', data = null) {
@@ -132,6 +540,15 @@ class ProWorkflowAPI {
     return await this.makeRequest('/companies');
   }
 
+  // Message methods
+  static async getProjectMessages(projectId) {
+    return await this.makeRequest(`/projects/${projectId}/messages`);
+  }
+
+  static async getTaskMessages(taskId) {
+    return await this.makeRequest(`/tasks/${taskId}/messages`);
+  }
+
   // Assignment Queue methods
   static async getProjectRequests() {
     return await this.makeRequest('/projectrequests');
@@ -187,11 +604,11 @@ app.get('/api/rest/tasks', async (req, res) => {
   }
 });
 
-// PERFORMANCE OPTIMIZED: projects-table route with team filtering
+// PERFORMANCE OPTIMIZED: projects-table route with team filtering and messages
 app.get('/api/rest/projects-table', async (req, res) => {
   const { manager, sort } = req.query;
   try {
-    console.log('=== STARTING OPTIMIZED PROJECT LOAD ===');
+    console.log('=== STARTING OPTIMIZED PROJECT LOAD WITH MESSAGES ===');
     
     // Get basic projects list
     const projectsData = await ProWorkflowAPI.getProjects();
@@ -199,14 +616,23 @@ app.get('/api/rest/projects-table', async (req, res) => {
     
     console.log(`Found ${projects.length} total projects`);
     
-    // PERFORMANCE: Create rate-limited requests for project details
+    // PERFORMANCE: Create rate-limited requests for project details and messages
     const projectRequests = projects.map(project => 
-      () => ProWorkflowAPI.makeRequest(`/projects/${project.id}`)
-        .then(details => ({ ...details.project, originalId: project.id }))
-        .catch(error => {
-          console.error(`Failed to get details for project ${project.id}`);
-          return { ...project, error: true };
+      () => Promise.all([
+        ProWorkflowAPI.makeRequest(`/projects/${project.id}`),
+        ProWorkflowAPI.makeRequest(`/projects/${project.id}/messages`).catch(error => {
+          console.warn(`Failed to get messages for project ${project.id}`);
+          return { messages: [], count: 0 };
         })
+      ]).then(([details, messages]) => ({ 
+        ...details.project, 
+        originalId: project.id,
+        messageData: messages
+      }))
+      .catch(error => {
+        console.error(`Failed to get details for project ${project.id}`);
+        return { ...project, error: true, messageData: { messages: [], count: 0 } };
+      })
     );
     
     console.log(`Starting rate-limited API calls (max 8 concurrent)...`);
@@ -242,6 +668,35 @@ app.get('/api/rest/projects-table', async (req, res) => {
         const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
         const isUpcoming = daysUntilDue !== null && daysUntilDue <= 30 && daysUntilDue >= 0;
         
+        // Process message data for communication insights
+        const messages = project.messageData?.messages || [];
+        const messageCount = messages.length;
+        
+        let lastMessageDate = null;
+        let lastMessageAuthor = null;
+        let lastMessageType = null;
+        let daysSinceLastMessage = null;
+        let communicationHealth = 'none';
+        
+        if (messages.length > 0) {
+          const sortedMessages = messages.sort((a, b) => new Date(b.date) - new Date(a.date));
+          const lastMessage = sortedMessages[0];
+          
+          lastMessageDate = new Date(lastMessage.date);
+          lastMessageAuthor = lastMessage.authorname;
+          lastMessageType = lastMessage.authortype; // 'staff' or 'client'
+          daysSinceLastMessage = Math.floor((new Date() - lastMessageDate) / (1000 * 60 * 60 * 24));
+          
+          // Communication health based on recency
+          if (daysSinceLastMessage <= 2) {
+            communicationHealth = 'active';
+          } else if (daysSinceLastMessage <= 7) {
+            communicationHealth = 'normal';
+          } else {
+            communicationHealth = 'stale';
+          }
+        }
+        
         return {
           number: project.number,
           title: project.title,
@@ -260,7 +715,16 @@ app.get('/api/rest/projects-table', async (req, res) => {
           client: project.companyname || 'Unknown Client',
           priority: project.priority || 'Medium',
           startDate: startDate ? new Date(startDate).toLocaleDateString() : 'No start date',
-          status: project.status || 'active'
+          status: project.status || 'active',
+          
+          // Message/Communication data
+          messageCount: messageCount,
+          lastMessageDate: lastMessageDate,
+          lastMessageAuthor: lastMessageAuthor,
+          lastMessageType: lastMessageType,
+          daysSinceLastMessage: daysSinceLastMessage,
+          communicationHealth: communicationHealth,
+          messages: messages // Include all messages for detailed view
         };
       });
 
@@ -284,6 +748,13 @@ app.get('/api/rest/projects-table', async (req, res) => {
       case 'title':
         tableProjects.sort((a, b) => a.title.localeCompare(b.title));
         break;
+      case 'communication':
+        tableProjects.sort((a, b) => {
+          if (a.daysSinceLastMessage === null) return 1;
+          if (b.daysSinceLastMessage === null) return -1;
+          return b.daysSinceLastMessage - a.daysSinceLastMessage;
+        });
+        break;
       default:
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
     }
@@ -300,7 +771,7 @@ app.get('/api/rest/projects-table', async (req, res) => {
     
     const availableManagers = Array.from(uniqueManagersMap.values());
 
-    console.log(`Returning ${tableProjects.length} team projects`);
+    console.log(`Returning ${tableProjects.length} team projects with message data`);
 
     res.json({ 
       projects: tableProjects,
@@ -315,84 +786,151 @@ app.get('/api/rest/projects-table', async (req, res) => {
   }
 });
 
-// PERFORMANCE OPTIMIZED: Project tasks with pagination
+// ENHANCED: Project tasks with smart task-relevant message integration
 app.get('/api/rest/project/:id/tasks', async (req, res) => {
   try {
     const projectId = req.params.id;
     const limit = parseInt(req.query.limit) || 20;
     const offset = parseInt(req.query.offset) || 0;
     
-    console.log(`Fetching tasks for project ${projectId} (limit: ${limit}, offset: ${offset})`);
+    console.log(`=== SMART TASK-RELEVANT MESSAGE INTEGRATION FOR PROJECT ${projectId} ===`);
+    console.log(`Limit: ${limit}, Offset: ${offset}`);
     
-    const tasksResponse = await ProWorkflowAPI.makeRequest(`/projects/${projectId}/tasks?status=all`);
+    // Get project tasks and project messages in parallel
+    const [tasksResponse, projectMessagesResponse] = await Promise.all([
+      ProWorkflowAPI.makeRequest(`/projects/${projectId}/tasks?status=all`),
+      ProWorkflowAPI.makeRequest(`/projects/${projectId}/messages`).catch(error => {
+        console.warn(`Failed to get project messages for ${projectId}: ${error.message}`);
+        return { messages: [], count: 0 };
+      })
+    ]);
+    
     const tasks = tasksResponse.tasks || [];
+    const projectMessages = projectMessagesResponse.messages || [];
     
-    console.log(`Found ${tasks.length} total tasks in project ${projectId}`);
+    console.log(`Found ${tasks.length} total tasks and ${projectMessages.length} project messages`);
     
     const tasksToProcess = tasks.slice(offset, offset + limit);
     console.log(`Processing tasks ${offset + 1}-${offset + tasksToProcess.length} of ${tasks.length}`);
     
     const taskRequests = tasksToProcess.map(task => 
-      () => ProWorkflowAPI.makeRequest(`/tasks/${task.id}`)
-        .then(taskDetails => {
-          const taskInfo = taskDetails.task;
-          
-          const assignedNames = (taskInfo.contacts || [])
-            .map(contact => contact.name)
-            .filter(name => name && name.trim());
+      () => Promise.all([
+        ProWorkflowAPI.makeRequest(`/tasks/${task.id}`),
+        ProWorkflowAPI.makeRequest(`/tasks/${task.id}/messages`).catch(error => {
+          console.warn(`Failed to get task messages for ${task.id}: ${error.message}`);
+          return { messages: [], count: 0 };
+        })
+      ]).then(([taskDetails, taskMessages]) => {
+        const taskInfo = taskDetails.task;
+        const directTaskMessages = taskMessages.messages || [];
+        
+        const assignedNames = (taskInfo.contacts || [])
+          .map(contact => contact.name)
+          .filter(name => name && name.trim());
 
-          const dueDate = taskInfo.duedate ? new Date(taskInfo.duedate) : null;
-          let dueDateStatus = 'none';
-          let daysUntilDue = null;
-          
-          if (dueDate) {
-            daysUntilDue = Math.floor((dueDate - new Date()) / (1000 * 60 * 60 * 24));
-            if (daysUntilDue < 0) {
-              dueDateStatus = 'overdue';
-            } else if (daysUntilDue <= 7) {
-              dueDateStatus = 'due-soon';
-            } else {
-              dueDateStatus = 'normal';
-            }
+        const dueDate = taskInfo.duedate ? new Date(taskInfo.duedate) : null;
+        let dueDateStatus = 'none';
+        let daysUntilDue = null;
+        
+        if (dueDate) {
+          daysUntilDue = Math.floor((dueDate - new Date()) / (1000 * 60 * 60 * 24));
+          if (daysUntilDue < 0) {
+            dueDateStatus = 'overdue';
+          } else if (daysUntilDue <= 7) {
+            dueDateStatus = 'due-soon';
+          } else {
+            dueDateStatus = 'normal';
           }
+        }
 
-          const isCompleted = taskInfo.status === 'complete';
+        const isCompleted = taskInfo.status === 'complete';
+        
+        // ENHANCED: Smart task-relevant message filtering
+        let allTaskMessages = directTaskMessages;
+        let messageSource = 'task';
+        
+        if (directTaskMessages.length === 0 && projectMessages.length > 0) {
+          const smartContextMessages = getTaskContextMessages(projectMessages, taskInfo);
+          allTaskMessages = smartContextMessages;
+          messageSource = 'project-context';
+          console.log(`Task ${task.id}: Using ${smartContextMessages.length} smart context messages from project`);
+        } else if (directTaskMessages.length > 0) {
+          console.log(`Task ${task.id}: Using ${directTaskMessages.length} direct task messages`);
+        } else {
+          console.log(`Task ${task.id}: No relevant messages found`);
+        }
+        
+        // Calculate communication health based on all messages
+        let lastTaskMessageDate = null;
+        let daysSinceLastTaskMessage = null;
+        let taskCommunicationHealth = 'none';
+        
+        if (allTaskMessages.length > 0) {
+          const sortedMessages = allTaskMessages.sort((a, b) => new Date(b.date) - new Date(a.date));
+          const lastMessage = sortedMessages[0];
           
-          return {
-            id: task.id,
-            title: task.name,
-            status: taskInfo.status || 'active',
-            completed: isCompleted,
-            assignedTo: assignedNames.length > 0 ? assignedNames.join(', ') : 'Unassigned',
-            dueDate: dueDate ? dueDate.toLocaleDateString() : null,
-            dueDateStatus: dueDateStatus,
-            daysUntilDue: daysUntilDue,
-            priority: taskInfo.priority || 3,
-            description: taskInfo.description || null,
-            order: task.order1 || 0,
-            taskNumber: task.ordernumber || task.id,
-            startDate: taskInfo.startdate ? new Date(taskInfo.startdate).toLocaleDateString() : null,
-            completeDate: taskInfo.completedate ? new Date(taskInfo.completedate).toLocaleDateString() : null,
-            timeAllocated: taskInfo.timeallocated || 0,
-            timeTracked: taskInfo.timetracked || 0
-          };
-        })
-        .catch(taskError => {
-          console.error(`Error fetching task ${task.id}:`, taskError.message);
-          return {
-            id: task.id,
-            title: task.name || 'Untitled Task',
-            status: 'unknown',
-            completed: false,
-            assignedTo: 'Error loading assignments',
-            dueDate: null,
-            dueDateStatus: 'none',
-            daysUntilDue: null,
-            priority: 3,
-            description: null,
-            order: task.order1 || 0
-          };
-        })
+          lastTaskMessageDate = new Date(lastMessage.date);
+          daysSinceLastTaskMessage = Math.floor((new Date() - lastTaskMessageDate) / (1000 * 60 * 60 * 24));
+          
+          if (daysSinceLastTaskMessage <= 2) {
+            taskCommunicationHealth = 'active';
+          } else if (daysSinceLastTaskMessage <= 7) {
+            taskCommunicationHealth = 'normal';
+          } else {
+            taskCommunicationHealth = 'stale';
+          }
+        }
+        
+        return {
+          id: task.id,
+          title: task.name,
+          status: taskInfo.status || 'active',
+          completed: isCompleted,
+          assignedTo: assignedNames.length > 0 ? assignedNames.join(', ') : 'Unassigned',
+          dueDate: dueDate ? dueDate.toLocaleDateString() : null,
+          dueDateStatus: dueDateStatus,
+          daysUntilDue: daysUntilDue,
+          priority: taskInfo.priority || 3,
+          description: taskInfo.description || null,
+          order: task.order1 || 0,
+          taskNumber: task.ordernumber || task.id,
+          startDate: taskInfo.startdate ? new Date(taskInfo.startdate).toLocaleDateString() : null,
+          completeDate: taskInfo.completedate ? new Date(taskInfo.completedate).toLocaleDateString() : null,
+          timeAllocated: taskInfo.timeallocated || 0,
+          timeTracked: taskInfo.timetracked || 0,
+          
+          // ENHANCED: Smart task-relevant message data
+          taskMessages: allTaskMessages,
+          taskMessageCount: allTaskMessages.length,
+          lastTaskMessageDate: lastTaskMessageDate,
+          daysSinceLastTaskMessage: daysSinceLastTaskMessage,
+          taskCommunicationHealth: taskCommunicationHealth,
+          messageSource: messageSource,
+          contacts: taskInfo.contacts || []
+        };
+      })
+      .catch(taskError => {
+        console.error(`Error fetching task ${task.id}:`, taskError.message);
+        return {
+          id: task.id,
+          title: task.name || 'Untitled Task',
+          status: 'unknown',
+          completed: false,
+          assignedTo: 'Error loading assignments',
+          dueDate: null,
+          dueDateStatus: 'none',
+          daysUntilDue: null,
+          priority: 3,
+          description: null,
+          order: task.order1 || 0,
+          taskMessages: [],
+          taskMessageCount: 0,
+          lastTaskMessageDate: null,
+          daysSinceLastTaskMessage: null,
+          taskCommunicationHealth: 'none',
+          messageSource: 'error'
+        };
+      })
     );
     
     const tasksWithAssignments = await rateLimitedRequest(taskRequests, 5);
@@ -401,7 +939,17 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
     const hasMore = offset + limit < tasks.length;
     const remaining = hasMore ? tasks.length - (offset + limit) : 0;
     
-    console.log(`Successfully processed ${tasksWithAssignments.length} tasks with assignments`);
+    // Enhanced logging with smart filtering results
+    const tasksWithMessages = tasksWithAssignments.filter(t => t.taskMessageCount > 0);
+    const tasksWithDirectMessages = tasksWithAssignments.filter(t => t.messageSource === 'task');
+    const tasksWithSmartContextMessages = tasksWithAssignments.filter(t => t.messageSource === 'project-context');
+    
+    console.log(`? SMART TASK-RELEVANT MESSAGE RESULTS:`);
+    console.log(`   • ${tasksWithAssignments.length} tasks processed`);
+    console.log(`   • ${tasksWithMessages.length} tasks with relevant messages`);
+    console.log(`   • ${tasksWithDirectMessages.length} tasks with direct messages`);
+    console.log(`   • ${tasksWithSmartContextMessages.length} tasks with smart context messages`);
+    console.log(`   • ${projectMessages.length} total project messages analyzed`);
     
     res.json({
       tasks: tasksWithAssignments,
@@ -409,7 +957,13 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
       totalTasks: tasks.length,
       displayedTasks: offset + tasksWithAssignments.length,
       remaining: remaining,
-      nextOffset: hasMore ? offset + limit : null
+      nextOffset: hasMore ? offset + limit : null,
+      messageStats: {
+        total: tasksWithMessages.length,
+        direct: tasksWithDirectMessages.length,
+        smartContext: tasksWithSmartContextMessages.length,
+        projectMessages: projectMessages.length
+      }
     });
     
   } catch (error) {
@@ -421,6 +975,50 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
       totalTasks: 0,
       displayedTasks: 0,
       remaining: 0
+    });
+  }
+});
+
+// Message-related API endpoints
+
+// Get project messages
+app.get('/api/rest/project/:id/messages', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    console.log(`=== FETCHING MESSAGES FOR PROJECT ${projectId} ===`);
+    
+    const messagesData = await ProWorkflowAPI.getProjectMessages(projectId);
+    
+    console.log(`Found ${messagesData.count || 0} messages for project ${projectId}`);
+    
+    res.json(messagesData);
+  } catch (error) {
+    console.error(`Error fetching messages for project ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: 'Failed to fetch project messages',
+      messages: [],
+      count: 0
+    });
+  }
+});
+
+// Get task messages
+app.get('/api/rest/task/:id/messages', async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    console.log(`=== FETCHING MESSAGES FOR TASK ${taskId} ===`);
+    
+    const messagesData = await ProWorkflowAPI.getTaskMessages(taskId);
+    
+    console.log(`Found ${messagesData.count || 0} messages for task ${taskId}`);
+    
+    res.json(messagesData);
+  } catch (error) {
+    console.error(`Error fetching messages for task ${req.params.id}:`, error);
+    res.status(500).json({ 
+      error: 'Failed to fetch task messages',
+      messages: [],
+      count: 0
     });
   }
 });
@@ -508,6 +1106,35 @@ app.put('/api/rest/project-requests/:id/approve', async (req, res) => {
   }
 });
 
+// AI Assistant Chat endpoint
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, context } = req.body;
+    
+    console.log('? AI Assistant Request:', message);
+    
+    // Basic fallback response for now
+    const response = `I can help you analyze your ProWorkflow dashboard! I see you're asking about: "${message}". 
+
+To enable full AI capabilities, you'll need to configure an API key (OpenAI or Claude) in your environment variables.
+
+For now, I can tell you that you have projects loaded in your dashboard. Try asking specific questions about project health, team workload, or communication status.`;
+    
+    res.json({ 
+      response: response,
+      timestamp: new Date().toISOString(),
+      context: 'basic-fallback'
+    });
+    
+  } catch (error) {
+    console.error('? AI Assistant Error:', error);
+    res.status(500).json({ 
+      error: 'AI Assistant temporarily unavailable',
+      fallback: 'I can help you analyze your projects, identify bottlenecks, and suggest actions. Please try again.'
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -515,7 +1142,9 @@ app.get('/health', (req, res) => {
     status: 'OK', 
     timestamp: new Date().toISOString(),
     cacheSize: cache.size,
-    routes: ['Dashboard: /', 'Assignment Queue: /assignment-queue']
+    routes: ['Dashboard: /', 'Assignment Queue: /assignment-queue'],
+    security: 'ENABLED',
+    user: req.session?.user?.username || 'anonymous'
   });
 });
 
@@ -535,28 +1164,205 @@ app.get('/api/cache-status', (req, res) => {
   });
 });
 
+// Security validation function
+function validateSecurityConfig() {
+  const requiredEnvVars = [
+    'PROWORKFLOW_API_KEY',
+    'PROWORKFLOW_USERNAME', 
+    'PROWORKFLOW_PASSWORD'
+  ];
+  
+  const missing = requiredEnvVars.filter(env => !process.env[env]);
+  
+  if (missing.length > 0) {
+    console.error('? Missing required ProWorkflow environment variables:');
+    missing.forEach(env => console.error(`   - ${env}`));
+    return false;
+  }
+  
+  // Check if demo password hashes are still being used
+  if (!process.env.ADMIN_PASSWORD_HASH || process.env.ADMIN_PASSWORD_HASH.includes('placeholder')) {
+    console.warn('??  Using demo password hash - generate secure passwords for production');
+    console.warn('? Run: const bcrypt = require("bcrypt"); console.log(bcrypt.hashSync("your_password", 10));');
+  }
+  
+  console.log('? Basic security configuration validated');
+  return true;
+}
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('ProWorkflow Suite Error:', error);
   res.status(500).json({ error: 'Internal server error' });
 });
 
+
+
+// TASK MESSAGES ENDPOINT (for modals)
+app.get('/api/rest/task/:taskId/messages', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    
+    console.log(`? Loading messages for task ${taskId}`);
+    
+    // Get task messages using your existing makeRequest function
+    const messagesResponse = await makeRequest(`/tasks/${taskId}/messages`);
+    const messages = messagesResponse.data || [];
+    
+    console.log(`? Found ${messages.length} messages for task ${taskId}`);
+    
+    res.json({
+      messages: messages,
+      totalMessages: messages.length
+    });
+    
+  } catch (error) {
+    console.error(`? Error loading messages for task ${taskId}:`, error);
+    res.status(500).json({ error: 'Failed to load task messages', details: error.message });
+  }
+});
+
+// CHAT API ENDPOINT (for AI assistant)
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, context } = req.body;
+    
+    console.log('? Chat request:', message);
+    
+    // Generate intelligent response based on message content
+    let response = generateContextualResponse(message, context);
+    
+    res.json({ 
+      response: response,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Chat API error:', error);
+    res.status(500).json({ 
+      response: "I'm having trouble right now. Please try again.",
+      error: true
+    });
+  }
+});
+
+// Smart contextual responses for dashboard queries
+function generateContextualResponse(message, context) {
+  const msg = message.toLowerCase();
+  
+  // Project analysis queries
+  if (msg.includes('stale') || msg.includes('communication')) {
+    return "I can see your communication health data. Projects with red badges (>7 days) need immediate attention. Would you like me to identify which clients to follow up with?";
+  }
+  
+  if (msg.includes('overdue') || msg.includes('deadline')) {
+    return "I can help you identify overdue projects and tasks. Check the red deadline badges in your project list. Would you like me to prioritize them by urgency?";
+  }
+  
+  if (msg.includes('rush') || msg.includes('urgent')) {
+    return "RUSH projects are highlighted in yellow. I can help you track their progress and ensure they're moving through the workflow quickly.";
+  }
+  
+  if (msg.includes('assignment') || msg.includes('assign')) {
+    return "For assignment management, check your Assignment Queue at /assignment-queue. I can help you match projects to the right team members based on skills and workload.";
+  }
+  
+  if (msg.includes('task') || msg.includes('message')) {
+    return "Your dashboard shows task assignments and communication health. Click the blue expand arrows to see detailed task lists for each project, and click the ? badges to see threaded task messages.";
+  }
+  
+  if (msg.includes('dashboard') || msg.includes('help')) {
+    return "Your dashboard shows: ? Active projects (<=2 days), ? Normal (3-7 days), ? Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
+  }
+  
+  // General responses
+  if (msg.includes('hello') || msg.includes('hi')) {
+    return "Hi! I'm your ProWorkflow AI assistant. I can help you analyze project health, identify bottlenecks, suggest follow-ups, and navigate your dashboard. What would you like to know?";
+  }
+  
+  // Default intelligent response
+  return `I understand you're asking about "${message}". I can help you analyze your ProWorkflow data, identify communication gaps, track project health, and suggest actions. Your dashboard shows real-time project status with threaded messages. What specific insights would you like?`;
+}
+
+			// TASK MESSAGES ENDPOINT (for modals)
+app.get('/api/rest/task/:taskId/messages', async (req, res) => {
+  try {
+    const { taskId } = req.params;
+    console.log(`Loading messages for task ${taskId}`);
+    
+    const messagesResponse = await makeRequest(`/tasks/${taskId}/messages`);
+    const messages = messagesResponse.data || [];
+    
+    res.json({
+      messages: messages,
+      totalMessages: messages.length
+    });
+    
+  } catch (error) {
+    console.error(`Error loading messages for task ${taskId}:`, error);
+    res.status(500).json({ error: 'Failed to load task messages', details: error.message });
+  }
+});
+
+// CHAT API ENDPOINT (for AI assistant)
+app.post('/api/chat', async (req, res) => {
+  try {
+    const { message, context } = req.body;
+    console.log('Chat request:', message);
+    
+    const response = generateContextualResponse(message, context);
+    
+    res.json({ 
+      response: response,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    console.error('Chat API error:', error);
+    res.status(500).json({ 
+      response: "I'm having trouble right now. Please try again.",
+      error: true
+    });
+  }
+});
+		
+		function generateContextualResponse(message, context) {
+  const msg = message.toLowerCase();
+  
+  if (msg.includes('stale') || msg.includes('communication')) {
+    return "Projects with red badges (>7 days) need immediate attention. Would you like me to identify which clients to follow up with?";
+  }
+  
+  if (msg.includes('rush') || msg.includes('urgent')) {
+    return "RUSH projects are highlighted in yellow. I can help you track their progress and ensure they're moving through the workflow quickly.";
+  }
+  
+  if (msg.includes('task') || msg.includes('message')) {
+    return "Click the blue expand arrows to see detailed task lists, and click the ? badges to see threaded task messages.";
+  }
+  
+  if (msg.includes('hello') || msg.includes('hi')) {
+    return "Hi! I'm your ProWorkflow AI assistant. I can help you analyze project health, identify bottlenecks, and suggest follow-ups.";
+  }
+  
+  return `I can help you analyze your ProWorkflow data and identify communication gaps. Your dashboard shows ${context?.projects || 'multiple'} projects with real-time monitoring.`;
+}
+								
 // Start server
 app.listen(PORT, () => {
-  console.log(`ProWorkflow Combined Suite running on port ${PORT}`);
-  console.log(`Dashboard available at: /`);
-  console.log(`Assignment Queue available at: /assignment-queue`);
-  console.log(`Features: Project monitoring, task management, request assignment`);
-  
+console.log(`? ProWorkflow Combined Suite running on port ${PORT}`);
+console.log(`? Login at: http://localhost:${PORT}/login`);
+console.log(`? Dashboard available at: /`);
+console.log(`? Assignment Queue available at: /assignment-queue`);
+console.log(`? AI Assistant ready (configure API keys for full functionality)`);
+console.log(`? Security: Authentication required, rate limiting enabled`);
+								
+								
   // Validate configuration
-  if (!PROWORKFLOW_CONFIG.apiKey) {
-    console.warn('WARNING: PROWORKFLOW_API_KEY environment variable not set');
-  }
-  if (!PROWORKFLOW_CONFIG.username) {
-    console.warn('WARNING: PROWORKFLOW_USERNAME environment variable not set');
-  }
-  if (!PROWORKFLOW_CONFIG.password) {
-    console.warn('WARNING: PROWORKFLOW_PASSWORD environment variable not set');
+  if (!validateSecurityConfig()) {
+    console.error('? CONFIGURATION INCOMPLETE - See errors above');
+  } else {
+    console.log('? Server started successfully with security enabled');
   }
 });
 

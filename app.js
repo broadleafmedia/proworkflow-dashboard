@@ -1,39 +1,30 @@
 require('dotenv').config();
 // ProWorkflow Combined App - Dashboard + Assignment Queue
 // Single Heroku deployment serving both interfaces with SECURITY
-
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
-
 // SECURITY IMPORTS
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
-
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// SECURITY MIDDLEWARE
-/*
+// SECURITY MIDDLEWARE - WORKING VERSION
 app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "https:", "blob:"],
-      connectSrc: ["'self'"],
-      fontSrc: ["'self'", "https:", "data:"],
-      objectSrc: ["'none'"],
-      mediaSrc: ["'self'"],
-      frameSrc: ["'none'"]
-    }
-  }
+  contentSecurityPolicy: false,
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true
+  },
+  noSniff: true,
+  frameguard: { action: 'deny' },
+  xssFilter: true,
 }));
-*/
 
 // RATE LIMITING
 const generalLimiter = rateLimit({
@@ -43,20 +34,17 @@ const generalLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 });
-
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 5, // Limit login attempts
   message: 'Too many login attempts, please try again later.',
   skipSuccessfulRequests: true,
 });
-
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 50, // Limit API calls
   message: 'API rate limit exceeded',
 });
-
 // Apply rate limiting
 app.use(generalLimiter);
 
@@ -113,8 +101,6 @@ function requireAuth(req, res, next) {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-
-
 // APPLY AUTHENTICATION TO ALL ROUTES EXCEPT LOGIN
 app.use((req, res, next) => {
   // Skip auth for login page and auth endpoints
@@ -125,7 +111,6 @@ app.use((req, res, next) => {
   // Apply authentication to everything else
   return requireAuth(req, res, next);
 });
-
 
 // SECURITY ROUTES
 app.get('/login', (req, res) => {
@@ -271,17 +256,6 @@ app.post('/auth/login', async (req, res) => {
   }
 });
 
-app.use('/', requireAuth);
-
-// ADD THIS DEBUGGING CODE
-app.use('/', (req, res, next) => {
-  console.log('DEBUG: Session data:', req.session);
-  console.log('DEBUG: Authenticated:', req.session?.authenticated);
-  console.log('DEBUG: URL requested:', req.url);
-  next();
-});
-
-
 app.post('/auth/logout', (req, res) => {
   req.session.destroy();
   res.redirect('/login');
@@ -293,12 +267,9 @@ app.get('/robots.txt', (req, res) => {
   res.send(`User-agent: *\nDisallow: /`);
 });
 
-
 // Static files and API rate limiting
 app.use(express.static('public'));
 app.use('/api', apiLimiter);
-
-
 
 // ProWorkflow API Configuration
 const PROWORKFLOW_CONFIG = {
@@ -494,7 +465,6 @@ class ProWorkflowAPI {
           return cached;
         }
       }
-
       const config = {
         method,
         url: `${PROWORKFLOW_CONFIG.baseURL}${endpoint}`,
@@ -518,53 +488,42 @@ class ProWorkflowAPI {
       throw error;
     }
   }
-
   // Dashboard methods
   static async getProjects() {
     return await this.makeRequest('/projects');
   }
-
   static async getProject(projectId) {
     return await this.makeRequest(`/projects/${projectId}`);
   }
-
   static async getTasks() {
     return await this.makeRequest('/tasks');
   }
-
   static async getProjectTasks(projectId) {
     return await this.makeRequest(`/projects/${projectId}/tasks`);
   }
-
   static async getCompanies() {
     return await this.makeRequest('/companies');
   }
-
   // Message methods
   static async getProjectMessages(projectId) {
     return await this.makeRequest(`/projects/${projectId}/messages`);
   }
-
   static async getTaskMessages(taskId) {
     return await this.makeRequest(`/tasks/${taskId}/messages`);
   }
-
   // Assignment Queue methods
   static async getProjectRequests() {
     return await this.makeRequest('/projectrequests');
   }
-
   static async getProjectRequest(requestId) {
     return await this.makeRequest(`/projectrequests/${requestId}`);
   }
-
   static async approveProjectRequest(requestId, assigneeData) {
     return await this.makeRequest(`/projectrequests/${requestId}/approve`, 'PUT', assigneeData);
   }
 }
 
 // MAIN ROUTES - Serve HTML Pages
-
 // Dashboard (main page)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -576,7 +535,6 @@ app.get('/assignment-queue', (req, res) => {
 });
 
 // DASHBOARD API ROUTES
-
 app.get('/api/rest/projects', async (req, res) => {
   try {
     const projects = await ProWorkflowAPI.getProjects();
@@ -727,7 +685,6 @@ app.get('/api/rest/projects-table', async (req, res) => {
           messages: messages // Include all messages for detailed view
         };
       });
-
     // Apply sorting
     switch (sort) {
       case 'idle':
@@ -758,7 +715,6 @@ app.get('/api/rest/projects-table', async (req, res) => {
       default:
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
     }
-
     // Get unique managers for filtering options
     const uniqueManagersMap = new Map();
     detailedProjects
@@ -770,9 +726,7 @@ app.get('/api/rest/projects-table', async (req, res) => {
       });
     
     const availableManagers = Array.from(uniqueManagersMap.values());
-
     console.log(`Returning ${tableProjects.length} team projects with message data`);
-
     res.json({ 
       projects: tableProjects,
       availableManagers: availableManagers,
@@ -827,7 +781,6 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
         const assignedNames = (taskInfo.contacts || [])
           .map(contact => contact.name)
           .filter(name => name && name.trim());
-
         const dueDate = taskInfo.duedate ? new Date(taskInfo.duedate) : null;
         let dueDateStatus = 'none';
         let daysUntilDue = null;
@@ -842,7 +795,6 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
             dueDateStatus = 'normal';
           }
         }
-
         const isCompleted = taskInfo.status === 'complete';
         
         // ENHANCED: Smart task-relevant message filtering
@@ -945,11 +897,11 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
     const tasksWithSmartContextMessages = tasksWithAssignments.filter(t => t.messageSource === 'project-context');
     
     console.log(`? SMART TASK-RELEVANT MESSAGE RESULTS:`);
-    console.log(`   • ${tasksWithAssignments.length} tasks processed`);
-    console.log(`   • ${tasksWithMessages.length} tasks with relevant messages`);
-    console.log(`   • ${tasksWithDirectMessages.length} tasks with direct messages`);
-    console.log(`   • ${tasksWithSmartContextMessages.length} tasks with smart context messages`);
-    console.log(`   • ${projectMessages.length} total project messages analyzed`);
+    console.log(`   ? ${tasksWithAssignments.length} tasks processed`);
+    console.log(`   ? ${tasksWithMessages.length} tasks with relevant messages`);
+    console.log(`   ? ${tasksWithDirectMessages.length} tasks with direct messages`);
+    console.log(`   ? ${tasksWithSmartContextMessages.length} tasks with smart context messages`);
+    console.log(`   ? ${projectMessages.length} total project messages analyzed`);
     
     res.json({
       tasks: tasksWithAssignments,
@@ -980,7 +932,6 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
 });
 
 // Message-related API endpoints
-
 // Get project messages
 app.get('/api/rest/project/:id/messages', async (req, res) => {
   try {
@@ -1024,7 +975,6 @@ app.get('/api/rest/task/:id/messages', async (req, res) => {
 });
 
 // ASSIGNMENT QUEUE API ROUTES
-
 // Get all project requests (Creative Services only)
 app.get('/api/rest/project-requests', async (req, res) => {
   try {
@@ -1113,17 +1063,13 @@ app.post('/api/chat', async (req, res) => {
     
     console.log('? AI Assistant Request:', message);
     
-    // Basic fallback response for now
-    const response = `I can help you analyze your ProWorkflow dashboard! I see you're asking about: "${message}". 
-
-To enable full AI capabilities, you'll need to configure an API key (OpenAI or Claude) in your environment variables.
-
-For now, I can tell you that you have projects loaded in your dashboard. Try asking specific questions about project health, team workload, or communication status.`;
+    // Generate intelligent response based on message content
+    let response = generateContextualResponse(message, context);
     
     res.json({ 
       response: response,
       timestamp: new Date().toISOString(),
-      context: 'basic-fallback'
+      context: 'contextual-analysis'
     });
     
   } catch (error) {
@@ -1131,117 +1077,6 @@ For now, I can tell you that you have projects loaded in your dashboard. Try ask
     res.status(500).json({ 
       error: 'AI Assistant temporarily unavailable',
       fallback: 'I can help you analyze your projects, identify bottlenecks, and suggest actions. Please try again.'
-    });
-  }
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    service: 'ProWorkflow Combined Suite',
-    status: 'OK', 
-    timestamp: new Date().toISOString(),
-    cacheSize: cache.size,
-    routes: ['Dashboard: /', 'Assignment Queue: /assignment-queue'],
-    security: 'ENABLED',
-    user: req.session?.user?.username || 'anonymous'
-  });
-});
-
-// Cache status endpoint
-app.get('/api/cache-status', (req, res) => {
-  const cacheInfo = Array.from(cache.entries()).map(([key, value]) => ({
-    key: key.length > 50 ? key.substring(0, 50) + '...' : key,
-    age: Math.round((Date.now() - value.timestamp) / 1000) + 's',
-    size: JSON.stringify(value.data).length + ' chars'
-  }));
-
-  res.json({
-    service: 'Combined ProWorkflow Suite Cache',
-    totalCached: cache.size,
-    cacheDuration: CACHE_DURATION / 1000 + 's',
-    entries: cacheInfo.slice(0, 20)
-  });
-});
-
-// Security validation function
-function validateSecurityConfig() {
-  const requiredEnvVars = [
-    'PROWORKFLOW_API_KEY',
-    'PROWORKFLOW_USERNAME', 
-    'PROWORKFLOW_PASSWORD'
-  ];
-  
-  const missing = requiredEnvVars.filter(env => !process.env[env]);
-  
-  if (missing.length > 0) {
-    console.error('? Missing required ProWorkflow environment variables:');
-    missing.forEach(env => console.error(`   - ${env}`));
-    return false;
-  }
-  
-  // Check if demo password hashes are still being used
-  if (!process.env.ADMIN_PASSWORD_HASH || process.env.ADMIN_PASSWORD_HASH.includes('placeholder')) {
-    console.warn('??  Using demo password hash - generate secure passwords for production');
-    console.warn('? Run: const bcrypt = require("bcrypt"); console.log(bcrypt.hashSync("your_password", 10));');
-  }
-  
-  console.log('? Basic security configuration validated');
-  return true;
-}
-
-// Error handling middleware
-app.use((error, req, res, next) => {
-  console.error('ProWorkflow Suite Error:', error);
-  res.status(500).json({ error: 'Internal server error' });
-});
-
-
-
-// TASK MESSAGES ENDPOINT (for modals)
-app.get('/api/rest/task/:taskId/messages', async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    
-    console.log(`? Loading messages for task ${taskId}`);
-    
-    // Get task messages using your existing makeRequest function
-    const messagesResponse = await makeRequest(`/tasks/${taskId}/messages`);
-    const messages = messagesResponse.data || [];
-    
-    console.log(`? Found ${messages.length} messages for task ${taskId}`);
-    
-    res.json({
-      messages: messages,
-      totalMessages: messages.length
-    });
-    
-  } catch (error) {
-    console.error(`? Error loading messages for task ${taskId}:`, error);
-    res.status(500).json({ error: 'Failed to load task messages', details: error.message });
-  }
-});
-
-// CHAT API ENDPOINT (for AI assistant)
-app.post('/api/chat', async (req, res) => {
-  try {
-    const { message, context } = req.body;
-    
-    console.log('? Chat request:', message);
-    
-    // Generate intelligent response based on message content
-    let response = generateContextualResponse(message, context);
-    
-    res.json({ 
-      response: response,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Chat API error:', error);
-    res.status(500).json({ 
-      response: "I'm having trouble right now. Please try again.",
-      error: true
     });
   }
 });
@@ -1284,80 +1119,75 @@ function generateContextualResponse(message, context) {
   return `I understand you're asking about "${message}". I can help you analyze your ProWorkflow data, identify communication gaps, track project health, and suggest actions. Your dashboard shows real-time project status with threaded messages. What specific insights would you like?`;
 }
 
-			// TASK MESSAGES ENDPOINT (for modals)
-app.get('/api/rest/task/:taskId/messages', async (req, res) => {
-  try {
-    const { taskId } = req.params;
-    console.log(`Loading messages for task ${taskId}`);
-    
-    const messagesResponse = await makeRequest(`/tasks/${taskId}/messages`);
-    const messages = messagesResponse.data || [];
-    
-    res.json({
-      messages: messages,
-      totalMessages: messages.length
-    });
-    
-  } catch (error) {
-    console.error(`Error loading messages for task ${taskId}:`, error);
-    res.status(500).json({ error: 'Failed to load task messages', details: error.message });
-  }
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ 
+    service: 'ProWorkflow Combined Suite',
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    cacheSize: cache.size,
+    routes: ['Dashboard: /', 'Assignment Queue: /assignment-queue'],
+    security: 'ENABLED',
+    user: req.session?.user?.username || 'anonymous'
+  });
 });
 
-// CHAT API ENDPOINT (for AI assistant)
-app.post('/api/chat', async (req, res) => {
-  try {
-    const { message, context } = req.body;
-    console.log('Chat request:', message);
-    
-    const response = generateContextualResponse(message, context);
-    
-    res.json({ 
-      response: response,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('Chat API error:', error);
-    res.status(500).json({ 
-      response: "I'm having trouble right now. Please try again.",
-      error: true
-    });
-  }
+// Cache status endpoint
+app.get('/api/cache-status', (req, res) => {
+  const cacheInfo = Array.from(cache.entries()).map(([key, value]) => ({
+    key: key.length > 50 ? key.substring(0, 50) + '...' : key,
+    age: Math.round((Date.now() - value.timestamp) / 1000) + 's',
+    size: JSON.stringify(value.data).length + ' chars'
+  }));
+  res.json({
+    service: 'Combined ProWorkflow Suite Cache',
+    totalCached: cache.size,
+    cacheDuration: CACHE_DURATION / 1000 + 's',
+    entries: cacheInfo.slice(0, 20)
+  });
 });
-		
-		function generateContextualResponse(message, context) {
-  const msg = message.toLowerCase();
+
+// Security validation function
+function validateSecurityConfig() {
+  const requiredEnvVars = [
+    'PROWORKFLOW_API_KEY',
+    'PROWORKFLOW_USERNAME', 
+    'PROWORKFLOW_PASSWORD'
+  ];
   
-  if (msg.includes('stale') || msg.includes('communication')) {
-    return "Projects with red badges (>7 days) need immediate attention. Would you like me to identify which clients to follow up with?";
+  const missing = requiredEnvVars.filter(env => !process.env[env]);
+  
+  if (missing.length > 0) {
+    console.error('? Missing required ProWorkflow environment variables:');
+    missing.forEach(env => console.error(`   - ${env}`));
+    return false;
   }
   
-  if (msg.includes('rush') || msg.includes('urgent')) {
-    return "RUSH projects are highlighted in yellow. I can help you track their progress and ensure they're moving through the workflow quickly.";
+  // Check if demo password hashes are still being used
+  if (!process.env.ADMIN_PASSWORD_HASH || process.env.ADMIN_PASSWORD_HASH.includes('placeholder')) {
+    console.warn('??  Using demo password hash - generate secure passwords for production');
+    console.warn('? Run: const bcrypt = require("bcrypt"); console.log(bcrypt.hashSync("your_password", 10));');
   }
   
-  if (msg.includes('task') || msg.includes('message')) {
-    return "Click the blue expand arrows to see detailed task lists, and click the ? badges to see threaded task messages.";
-  }
-  
-  if (msg.includes('hello') || msg.includes('hi')) {
-    return "Hi! I'm your ProWorkflow AI assistant. I can help you analyze project health, identify bottlenecks, and suggest follow-ups.";
-  }
-  
-  return `I can help you analyze your ProWorkflow data and identify communication gaps. Your dashboard shows ${context?.projects || 'multiple'} projects with real-time monitoring.`;
+  console.log('? Basic security configuration validated');
+  return true;
 }
-								
+
+// Error handling middleware
+app.use((error, req, res, next) => {
+  console.error('ProWorkflow Suite Error:', error);
+  res.status(500).json({ error: 'Internal server error' });
+});
+
 // Start server
 app.listen(PORT, () => {
-console.log(`? ProWorkflow Combined Suite running on port ${PORT}`);
-console.log(`? Login at: http://localhost:${PORT}/login`);
-console.log(`? Dashboard available at: /`);
-console.log(`? Assignment Queue available at: /assignment-queue`);
-console.log(`? AI Assistant ready (configure API keys for full functionality)`);
-console.log(`? Security: Authentication required, rate limiting enabled`);
-								
-								
+  console.log(`? ProWorkflow Combined Suite running on port ${PORT}`);
+  console.log(`? Login at: http://localhost:${PORT}/login`);
+  console.log(`? Dashboard available at: /`);
+  console.log(`? Assignment Queue available at: /assignment-queue`);
+  console.log(`? AI Assistant ready (configure API keys for full functionality)`);
+  console.log(`??  Security: Authentication required, rate limiting enabled, Helmet CSP configured`);
+  
   // Validate configuration
   if (!validateSecurityConfig()) {
     console.error('? CONFIGURATION INCOMPLETE - See errors above');

@@ -19,6 +19,46 @@
             font-size: 14px;
         }
 
+			
+			/* Assignment Alert Badges */
+.assignment-alert {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    margin-left: 8px;
+    animation: pulse 2s infinite;
+}
+
+.assignment-overdue {
+    background-color: #fee2e2;
+    color: #dc2626;
+    border: 1px solid #fca5a5;
+}
+
+.status-update-needed {
+    background-color: #fef3c7;
+    color: #d97706;
+    border: 1px solid #fcd34d;
+}
+
+.rush-project-badge {
+    background-color: #fef3c7;
+    color: #d97706;
+    border: 1px solid #fcd34d;
+    font-weight: 700;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+			
+			
         /* MAIN CONTAINER - ADJUST FOR SIDEBAR */
         .main-container {
             transition: margin-right 0.3s ease;
@@ -1089,6 +1129,52 @@
             return rootMessages;
         }
 
+			
+function getAssignmentAlerts(project) {
+    let alerts = [];
+    
+    // Assignment overdue alert
+    if (project.isAssignmentOverdue) {
+        const rushText = project.isRush ? ' (RUSH)' : '';
+        const description = project.assignmentStatus?.description || 'Assignment overdue';
+        alerts.push({
+            type: 'assignment-overdue',
+            text: `🚨 ${description}${rushText}`,
+            class: 'assignment-alert assignment-overdue'
+        });
+    }
+    
+    // Status update needed alert  
+    if (project.needsStatusUpdate && project.needsAttentionReason) {
+        alerts.push({
+            type: 'status-update',
+            text: `⚠️ ${project.needsAttentionReason}`,
+            class: 'assignment-alert status-update-needed'
+        });
+    }
+    
+    // Enhanced RUSH badge (even if not overdue)
+    if (project.isRush && !project.isAssignmentOverdue) {
+        alerts.push({
+            type: 'rush-badge',
+            text: '⚡ RUSH PROJECT',
+            class: 'assignment-alert rush-project-badge'
+        });
+    }
+    
+    return alerts;
+}
+
+function getAssignmentAlertsHTML(project) {
+    const alerts = getAssignmentAlerts(project);
+    if (alerts.length === 0) return '';
+    
+    return alerts.map(alert => 
+        `<span class="${alert.class}" title="${alert.text}">${alert.text}</span>`
+    ).join('');
+}
+			
+			
 function renderThreadedMessages(threadedMessages, tasks = []) {
     return threadedMessages.map(message => {
         let messageHtml = `
@@ -1337,13 +1423,15 @@ function renderThreadedMessages(threadedMessages, tasks = []) {
                 const communicationInfo = getProjectCommunication(project);
                 
                 // Project data cells
-                const cells = [
-                    { content: project.number, class: 'project-number' },
-                    { 
-                        content: project.title, 
-                        link: project.projectUrl, 
-                        class: 'project-link'
-                    },
+const cells = [
+    { content: project.number, class: 'project-number' },
+    { 
+content: project.title,
+htmlContent: getAssignmentAlertsHTML(project),
+        link: project.projectUrl, 
+        class: 'project-link'
+    },
+
                     { content: project.owner },
                     { content: project.customStatus, style: `background: ${project.statusColor}; color: white;`, class: 'status-badge' },
                     { content: project.startDate || 'No start date' },
@@ -1356,16 +1444,22 @@ function renderThreadedMessages(threadedMessages, tasks = []) {
                     { content: project.daysIdle > 0 ? project.daysIdle + ' days' : 'Active', class: getDaysClass(project.daysIdle) }
                 ];
 
-                cells.forEach(cellData => {
-                    const td = document.createElement('td');
-                    
-                    if (cellData.link) {
-                        const link = document.createElement('a');
-                        link.href = cellData.link;
-                        link.target = '_blank';
-                        link.className = cellData.class || '';
-                        link.textContent = cellData.content;
-                        td.appendChild(link);
+cells.forEach(cellData => {
+    const td = document.createElement('td');
+    
+    if (cellData.link) {
+        const link = document.createElement('a');
+        link.href = cellData.link;
+        link.target = '_blank';
+        link.className = cellData.class || '';
+        link.textContent = cellData.content;
+        
+        // Add HTML content if present
+        if (cellData.htmlContent) {
+            link.innerHTML = cellData.content + cellData.htmlContent;
+        }
+        
+        td.appendChild(link);
                     } else {
                         const span = document.createElement('span');
                         if (cellData.class) span.className = cellData.class;
@@ -1809,6 +1903,8 @@ try {
             const staleCommProjects = projects.filter(p => p.communicationHealth === 'stale').length;
             const needingAttention = projects.filter(p => p.lastMessageType === 'client').length;
             const waitingForClient = projects.filter(p => p.lastMessageType === 'staff').length;
+					const assignmentOverdue = projects.filter(p => p.isAssignmentOverdue).length;
+const rushProjects = projects.filter(p => p.isRush).length;
 
             document.getElementById('stats').innerHTML = `
                 <div class="stat-card">
@@ -1831,6 +1927,14 @@ try {
                     <div class="stat-number" style="color: #f59e0b;">${waitingForClient}</div>
                     <div class="stat-label">Waiting for Client</div>
                 </div>
+<div class="stat-card">
+    <div class="stat-number" style="color: #dc2626;">${assignmentOverdue}</div>
+    <div class="stat-label">Assignment Overdue</div>
+</div>
+<div class="stat-card">
+    <div class="stat-number" style="color: #d97706;">${rushProjects}</div>
+    <div class="stat-label">RUSH Projects</div>
+</div>
             `;
         }
 

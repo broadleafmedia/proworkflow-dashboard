@@ -1694,85 +1694,46 @@ async function updateProjectStatus(projectId, newStatus) {
     }
 }
 
-// Make existing status badges clickable with dropdown menu
-function makeStatusBadgesClickable() {
-    const statusOptions = getStatusOptionsFromProjects();
-    
-    document.querySelectorAll('.status-badge').forEach((badge, index) => {
-        badge.style.cursor = 'pointer';
-        badge.title = 'Click to change status';
+// Simple status update function
+async function updateProjectStatus(projectId, newStatus) {
+    try {
+        console.log(`Updating project ${projectId} to status: ${newStatus}`);
         
-        badge.addEventListener('click', function(e) {
-            e.preventDefault();
-            e.stopPropagation();
-            
-            // Remove any existing dropdowns
-            document.querySelectorAll('.status-dropdown-menu').forEach(menu => menu.remove());
-            
-            const currentStatus = this.textContent.trim();
-            
-            // Create dropdown menu
-            const dropdown = document.createElement('div');
-            dropdown.className = 'status-dropdown-menu';
-            dropdown.style.cssText = `
-                position: absolute;
-                background: white;
-                border: 1px solid #ccc;
-                border-radius: 4px;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-                z-index: 1000;
-                max-height: 300px;
-                overflow-y: auto;
-                min-width: 200px;
-            `;
-            
-            // Add status options
-            statusOptions.forEach(status => {
-                const option = document.createElement('div');
-                option.style.cssText = `
-                    padding: 8px 12px;
-                    cursor: pointer;
-                    border-bottom: 1px solid #eee;
-                    ${status === currentStatus ? 'background: #f0f8ff; font-weight: bold;' : ''}
-                `;
-                option.textContent = status;
-                
-                option.addEventListener('mouseenter', () => {
-                    option.style.background = '#f5f5f5';
-                });
-                option.addEventListener('mouseleave', () => {
-                    option.style.background = status === currentStatus ? '#f0f8ff' : 'white';
-                });
-                
-                option.addEventListener('click', () => {
-                    if (status !== currentStatus) {
-                        const project = allProjects[index];
-                        const projectId = project.internalId || project.projectId || project.id;
-                        updateProjectStatus(projectId, status);
-                    }
-                    dropdown.remove();
-                });
-                
-                dropdown.appendChild(option);
-            });
-            
-            // Position dropdown
-            const rect = this.getBoundingClientRect();
-            dropdown.style.left = rect.left + 'px';
-            dropdown.style.top = (rect.bottom + 5) + 'px';
-            
-            document.body.appendChild(dropdown);
-            
-            // Close dropdown when clicking outside
-            setTimeout(() => {
-                document.addEventListener('click', function closeDropdown() {
-                    dropdown.remove();
-                    document.removeEventListener('click', closeDropdown);
-                });
-            }, 10);
+        const response = await fetch(`/api/rest/project/${projectId}/status`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: newStatus })
         });
-    });
+        
+        if (response.ok) {
+            console.log('Status updated successfully');
+            loadProjects();
+        } else {
+            console.error('Status update failed:', response.status);
+        }
+    } catch (error) {
+        console.error('Error updating status:', error);
+    }
 }
+
+// Simple click test - just alert for now
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        console.log('Attaching click handlers...');
+        document.querySelectorAll('.status-badge').forEach((badge, index) => {
+            badge.style.cursor = 'pointer';
+            badge.addEventListener('click', function() {
+                const currentStatus = this.textContent.trim();
+                const newStatus = prompt(`Change status from "${currentStatus}" to:`);
+                if (newStatus && newStatus !== currentStatus) {
+                    console.log(`Would update project ${index} to: ${newStatus}`);
+                    // We'll add the real update logic once this basic test works
+                }
+            });
+        });
+        console.log('Click handlers attached');
+    }, 3000); // Wait 3 seconds for projects to load
+});
 
 // Hook into the existing renderProjects function
 const originalRenderProjects = renderProjects;

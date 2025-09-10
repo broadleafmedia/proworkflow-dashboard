@@ -836,6 +836,25 @@ app.get('/api/rest/tasks', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch tasks' });
   }
 });
+// Project status update route
+app.put('/api/rest/project/:id/status', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { status } = req.body;
+    
+    console.log(`Updating project ${projectId} to status: ${status}`);
+    
+    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', {
+      customstatus: status
+    });
+    
+    console.log('Status update successful');
+    res.json(result);
+  } catch (error) {
+    console.error('Status update error:', error);
+    res.status(500).json({ error: 'Failed to update project status' });
+  }
+});
 
 // PERFORMANCE OPTIMIZED: projects-table route with team filtering and messages
 app.get('/api/rest/projects-table', async (req, res) => {

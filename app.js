@@ -950,6 +950,9 @@ return {
   number: project.number,
   title: project.title,
   projectId: project.id,
+    displayNumber: project.number,
+    internalId: project.id,
+
   projectUrl: `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobdetails&Jobs_currentJobID=${project.id}`,
   owner: project.managername || 'Unassigned',
   managerId: project.managerid,
@@ -1421,6 +1424,27 @@ function generateContextualResponse(message, context) {
   return `I understand you're asking about "${message}". I can help you analyze your ProWorkflow data, identify communication gaps, track project health, and suggest actions. Your dashboard shows real-time project status with threaded messages. What specific insights would you like?`;
 }
 
+								
+								// Project status update route
+app.put('/api/rest/project/:id/status', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { status } = req.body;
+    
+    console.log(`Updating project ${projectId} to status: ${status}`);
+    
+    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', {
+      customstatus: status
+    });
+    
+    res.json(result);
+  } catch (error) {
+    console.error('Status update error:', error);
+    res.status(500).json({ error: 'Failed to update project status' });
+  }
+});
+								
+								
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 

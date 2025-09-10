@@ -126,267 +126,6 @@ app.use((req, res, next) => {
   return requireAuth(req, res, next);
 });
 
-// =================================================================================
-// BUSINESS DAY CALCULATOR - Add this section to your app.js
-// Place this AFTER the existing helper functions (around line 100, before routes)
-// =================================================================================
-
-/**
- * Calculate business days between two dates (excludes weekends)
- * @param {Date} startDate - Starting date
- * @param {Date} endDate - Ending date (default: today)
- * @returns {number} Number of business days
- */
-function getBusinessDaysDifference(startDate, endDate = new Date()) {
-  if (!startDate || isNaN(startDate.getTime())) {
-    return 0;
-  }
-  
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  
-  // Ensure we're working with dates at midnight
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
-  
-  let businessDays = 0;
-  const currentDate = new Date(start);
-  
-  while (currentDate < end) {
-    const dayOfWeek = currentDate.getDay();
-    
-    // Only count weekdays (Monday=1 through Friday=5)
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      businessDays++;
-    }
-    
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-  
-  return businessDays;
-}
-
-/**
- * Get communication health status using business days
- * @param {Date} lastMessageDate - Date of last message
- * @param {boolean} isRushProject - Whether this is a RUSH project
- * @returns {Object} Health status info
- */
-function getCommunicationHealthBusiness(lastMessageDate, isRushProject = false) {
-  if (!lastMessageDate) {
-    return {
-      status: 'unknown',
-      businessDays: 0,
-      className: 'communication-unknown',
-      description: 'No communication data'
-    };
-  }
-  
-  const businessDays = getBusinessDaysDifference(lastMessageDate);
-  
-  // Different thresholds for RUSH vs normal projects
-  const thresholds = isRushProject ? 
-    { active: 1, attention: 2, stale: 3 } :     // RUSH: 1-2-3 business days
-    { active: 3, attention: 4, stale: 5 };      // Normal: 3-4-5 business days
-  
-  let status, className, description;
-  
-  if (businessDays <= thresholds.active) {
-    status = 'active';
-    className = 'communication-active';
-    description = `Active (${businessDays} business days)`;
-  } else if (businessDays <= thresholds.attention) {
-    status = 'attention';
-    className = 'communication-attention';
-    description = `Needs attention (${businessDays} business days)`;
-  } else {
-    status = 'stale';
-    className = 'communication-stale';
-    description = `Stale (${businessDays} business days)`;
-  }
-  
-  return {
-    status,
-    businessDays,
-    className,
-    description,
-    isRushProject
-  };
-}
-
-// Test endpoint to verify the calculator works
-app.get('/api/test/business-days', (req, res) => {
-  const testDate = new Date();
-  testDate.setDate(testDate.getDate() - 5); // 5 days ago
-  
-  const result = getCommunicationHealthBusiness(testDate, false);
-  const rushResult = getCommunicationHealthBusiness(testDate, true);
-  
-  res.json({
-    message: 'Business day calculator test',
-    testDate: testDate.toISOString(),
-    normalProject: result,
-    rushProject: rushResult,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// =================================================================================
-// END OF BUSINESS DAY CALCULATOR ADDITION
-// =================================================================================	
-
-
-	
-	// =================================================================================
-// ASSIGNMENT QUEUE MONITORING - Add this section to your app.js
-// Place this AFTER the business day calculator (around line 150, before routes)
-// =================================================================================
-
-/**
- * Check if a project in Queue status is overdue for assignment
- * @param {Object} project - Project object with status and dates
- * @returns {Object} Assignment status info
- */
-function getAssignmentQueueStatus(project) {
-  const customStatus = (project.customstatus || '').toLowerCase();
-  const isRushProject = customStatus.includes('rush');
-  
-  // Only check projects in Queue status
-  const isInQueue = customStatus === 'queue' || customStatus === 'rush - queue';
-  
-  if (!isInQueue) {
-    return {
-      isInQueue: false,
-      isOverdue: false,
-      status: 'not_in_queue',
-      description: null
-    };
-  }
-  
-  // Use project start date or creation date as queue entry time
-  const queueEntryDate = project.startdate ? new Date(project.startdate) : null;
-  
-  if (!queueEntryDate) {
-    return {
-      isInQueue: true,
-      isOverdue: false,
-      status: 'unknown_entry_time',
-      description: 'Queue entry time unknown'
-    };
-  }
-  
-  const businessDaysSinceQueued = getBusinessDaysDifference(queueEntryDate);
-  
-  // Assignment thresholds
-  const assignmentThreshold = isRushProject ? 0 : 1; // RUSH = same day, Normal = 1 business day
-  const isOverdue = businessDaysSinceQueued > assignmentThreshold;
-  
-  return {
-    isInQueue: true,
-    isOverdue: isOverdue,
-    businessDays: businessDaysSinceQueued,
-    status: isOverdue ? 'assignment_overdue' : 'in_queue',
-    description: isOverdue 
-      ? `Assignment overdue (${businessDaysSinceQueued} business days in queue)`
-      : `In queue (${businessDaysSinceQueued} business days)`,
-    rushProject: isRushProject,
-    threshold: assignmentThreshold
-  };
-}
-
-/**
- * Get enhanced project status with assignment monitoring
- * @param {Object} project - Project object
- * @returns {Object} Enhanced status info
- */
-function getEnhancedProjectStatus(project) {
-  const customStatus = (project.customstatus || '').toLowerCase();
-  const assignmentStatus = getAssignmentQueueStatus(project);
-  
-  // Check for other status-specific monitoring
-  let needsAttentionReason = null;
-  
-  // "Needs Attention" projects should be monitored daily
-  if (customStatus === 'needs attention') {
-    const lastUpdated = project.lastmodifiedutc ? new Date(project.lastmodifiedutc) : null;
-    if (lastUpdated) {
-      const daysSinceUpdate = getBusinessDaysDifference(lastUpdated);
-      if (daysSinceUpdate > 1) {
-        needsAttentionReason = `No progress in ${daysSinceUpdate} business days`;
-      }
-    }
-  }
-  
-  // "Meeting Scheduled" projects that may need status updates
-  if (customStatus === 'meeting scheduled') {
-    const lastUpdated = project.lastmodifiedutc ? new Date(project.lastmodifiedutc) : null;
-    if (lastUpdated) {
-      const daysSinceUpdate = getBusinessDaysDifference(lastUpdated);
-      if (daysSinceUpdate > 5) {
-        needsAttentionReason = `Meeting may have occurred - status update needed (${daysSinceUpdate} days)`;
-      }
-    }
-  }
-  
-  return {
-    assignmentStatus: assignmentStatus,
-    needsAttentionReason: needsAttentionReason,
-    statusFlags: {
-      assignmentOverdue: assignmentStatus.isOverdue,
-      needsStatusUpdate: needsAttentionReason !== null,
-      isRush: customStatus.includes('rush')
-    }
-  };
-}
-
-// Test endpoint to verify assignment monitoring works
-app.get('/api/test/assignment-queue', (req, res) => {
-  const testProjects = [
-    {
-      id: 'test1',
-      number: '12345',
-      title: 'Test Normal Queue Project',
-      customstatus: 'Queue',
-      startdate: new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)).toISOString() // 2 days ago
-    },
-    {
-      id: 'test2', 
-      number: '12346',
-      title: 'Test RUSH Queue Project',
-      customstatus: 'RUSH - Queue',
-      startdate: new Date(Date.now() - (1 * 24 * 60 * 60 * 1000)).toISOString() // 1 day ago
-    },
-    {
-      id: 'test3',
-      number: '12347', 
-      title: 'Test Needs Attention Project',
-      customstatus: 'Needs Attention',
-      lastmodifiedutc: new Date(Date.now() - (3 * 24 * 60 * 60 * 1000)).toISOString() // 3 days ago
-    }
-  ];
-  
-  const results = testProjects.map(project => ({
-    project: {
-      number: project.number,
-      title: project.title,
-      status: project.customstatus
-    },
-    analysis: getEnhancedProjectStatus(project)
-  }));
-  
-  res.json({
-    message: 'Assignment queue monitoring test',
-    results: results,
-    timestamp: new Date().toISOString()
-  });
-});
-
-// =================================================================================
-// END OF ASSIGNMENT QUEUE MONITORING ADDITION
-// =================================================================================
-	
-	
-	
 // SECURITY ROUTES
 app.get('/login', (req, res) => {
   res.send(`
@@ -867,7 +606,76 @@ app.get('/api/rest/projects-table', async (req, res) => {
         return { ...project, error: true, messageData: { messages: [], count: 0 } };
       })
     );
+    // PHASE 2: Get status options endpoint  
+app.get('/api/rest/status-options', async (req, res) => {
+  try {
+    console.log('=== FETCHING STATUS OPTIONS ===');
     
+    const statusResponse = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
+    
+    console.log(`✅ Loaded ${statusResponse?.customstatuses?.length || 0} custom statuses`);
+    
+    res.json({
+      success: true,
+      count: statusResponse.customstatuses.length,
+      statuses: statusResponse.customstatuses
+    });
+    
+  } catch (error) {
+    console.error('❌ Error fetching status options:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch status options'
+    });
+  }
+});
+
+// PHASE 2: Update project status endpoint
+app.put('/api/rest/project/:id/status', async (req, res) => {
+  try {
+    const projectId = req.params.id;
+    const { statusId } = req.body;
+    
+    console.log(`=== UPDATING PROJECT ${projectId} STATUS TO ${statusId} ===`);
+    
+    // First get current project details to preserve all fields
+    const currentProject = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`);
+    const project = currentProject.project;
+    
+// Prepare update data - preserve all existing fields with proper date formatting
+const updateData = {
+  title: project.title,
+  description: project.description || '',
+  companyid: project.companyid,
+  managerid: project.managerid,
+  categoryid: project.categoryid,
+  duedate: project.duedate ? project.duedate.split('T')[0] : null,
+  startdate: project.startdate ? project.startdate.split('T')[0] : null,
+  budget: project.budget || 0,
+  groupid: project.groupid || null,
+  divisionid: project.divisionid || null,
+  customstatusid: statusId
+};
+    
+    // Update the project
+    const updateResponse = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', updateData);
+    
+    console.log(`✅ Successfully updated project ${projectId} status`);
+    
+    res.json({
+      success: true,
+      project: updateResponse.project,
+      message: `Project status updated to status ID ${statusId}`
+    });
+    
+  } catch (error) {
+console.error(`❌ Error updating project ${req.params.id} status:`, error);
+    res.status(500).json({ 
+      error: 'Failed to update project status',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
     console.log(`Starting rate-limited API calls (max 8 concurrent)...`);
     const startTime = Date.now();
     
@@ -920,73 +728,46 @@ app.get('/api/rest/projects-table', async (req, res) => {
           lastMessageType = lastMessage.authortype; // 'staff' or 'client'
           daysSinceLastMessage = Math.floor((new Date() - lastMessageDate) / (1000 * 60 * 60 * 24));
           
-        // Enhanced communication health using business days
-        if (messages.length > 0) {
-          const sortedMessages = messages.sort((a, b) => new Date(b.date) - new Date(a.date));
-          const lastMessage = sortedMessages[0];
-          
-          lastMessageDate = new Date(lastMessage.date);
-          lastMessageAuthor = lastMessage.authorname;
-          lastMessageType = lastMessage.authortype; // 'staff' or 'client'
-          
-          // Check if this is a RUSH project
-          const isRushProject = (project.customstatus || '').toLowerCase().includes('rush');
-          
-          // Use our new business day calculator
-          const healthResult = getCommunicationHealthBusiness(lastMessageDate, isRushProject);
-          
-          communicationHealth = healthResult.status;
-          daysSinceLastMessage = healthResult.businessDays;
-          
-          console.log(`📊 Project ${project.number}: ${healthResult.description} ${isRushProject ? '(RUSH)' : ''}`);
-        }
-
+          // Communication health based on recency
+          if (daysSinceLastMessage <= 2) {
+            communicationHealth = 'active';
+          } else if (daysSinceLastMessage <= 7) {
+            communicationHealth = 'normal';
+          } else {
+            communicationHealth = 'stale';
+          }
         }
         
-// Get assignment queue status and enhanced status analysis
-const enhancedStatus = getEnhancedProjectStatus(project);
-
-return {
-  number: project.number,
-  title: project.title,
-  projectId: project.id,
-  projectUrl: `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobdetails&Jobs_currentJobID=${project.id}`,
-  owner: project.managername || 'Unassigned',
-  managerId: project.managerid,
-  customStatus: project.customstatus || project.status || 'Active',
-  statusColor: project.customstatuscolor ? `#${project.customstatuscolor}` : '#4CAF50',
-  daysIdle: daysSinceActivity > 7 ? daysSinceActivity : 0,
-  daysSinceStart: daysSinceStart,
-  dueDate: dueDate ? dueDate.toLocaleDateString() : null,
-  daysUntilDue: daysUntilDue,
-  isOverdue: isOverdue,
-  isUpcoming: isUpcoming,
-  client: project.companyname || 'Unknown Client',
-  priority: project.priority || 'Medium',
-  startDate: startDate ? new Date(startDate).toLocaleDateString() : 'No start date',
-  status: project.status || 'active',
-  
-  // Message/Communication data
-  messageCount: messageCount,
-  lastMessageDate: lastMessageDate,
-  lastMessageAuthor: lastMessageAuthor,
-  lastMessageType: lastMessageType,
-  daysSinceLastMessage: daysSinceLastMessage,
-  communicationHealth: communicationHealth,
-  messages: messages, // Include all messages for detailed view
-  
-  // NEW ASSIGNMENT STATUS FIELDS:
-  assignmentStatus: enhancedStatus.assignmentStatus,
-  needsAttentionReason: enhancedStatus.needsAttentionReason,
-  statusFlags: enhancedStatus.statusFlags,
-  
-  // Enhanced display flags
-  isAssignmentOverdue: enhancedStatus.statusFlags.assignmentOverdue,
-  needsStatusUpdate: enhancedStatus.statusFlags.needsStatusUpdate,
-  isRush: enhancedStatus.statusFlags.isRush
-};
+        return {
+          number: project.number,
+          title: project.title,
+          projectId: project.id,
+          projectUrl: `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobdetails&Jobs_currentJobID=${project.id}`,
+          owner: project.managername || 'Unassigned',
+          managerId: project.managerid,
+          customStatus: project.customstatus || project.status || 'Active',
+          statusColor: project.customstatuscolor ? `#${project.customstatuscolor}` : '#4CAF50',
+          daysIdle: daysSinceActivity > 7 ? daysSinceActivity : 0,
+          daysSinceStart: daysSinceStart,
+          dueDate: dueDate ? dueDate.toLocaleDateString() : null,
+          daysUntilDue: daysUntilDue,
+          isOverdue: isOverdue,
+          isUpcoming: isUpcoming,
+          client: project.companyname || 'Unknown Client',
+          priority: project.priority || 'Medium',
+          startDate: startDate ? new Date(startDate).toLocaleDateString() : 'No start date',
+          status: project.status || 'active',
+          
+          // Message/Communication data
+          messageCount: messageCount,
+          lastMessageDate: lastMessageDate,
+          lastMessageAuthor: lastMessageAuthor,
+          lastMessageType: lastMessageType,
+          daysSinceLastMessage: daysSinceLastMessage,
+          communicationHealth: communicationHealth,
+          messages: messages // Include all messages for detailed view
+        };
       });
-		
     // Apply sorting
     switch (sort) {
       case 'idle':

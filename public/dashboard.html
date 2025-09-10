@@ -1739,9 +1739,28 @@ document.addEventListener('DOMContentLoaded', function() {
 const originalRenderProjects = renderProjects;
 renderProjects = function(projects) {
     originalRenderProjects(projects);
-    setTimeout(makeStatusBadgesClickable, 100);
 };
 
+			
+			// Simple status update test
+setTimeout(function() {
+    console.log('Adding status click handlers...');
+    var badges = document.querySelectorAll('.status-badge');
+    console.log('Found status badges:', badges.length);
+    
+    for (var i = 0; i < badges.length; i++) {
+        badges[i].style.cursor = 'pointer';
+        badges[i].onclick = function() {
+            var currentStatus = this.textContent.trim();
+            var newStatus = prompt('Change status from "' + currentStatus + '" to:');
+            if (newStatus && newStatus !== currentStatus) {
+                console.log('Would update to:', newStatus);
+                alert('Status update feature working! (API call would go here)');
+            }
+        };
+    }
+}, 3000);
+			
     </script>
 
 </body>

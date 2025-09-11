@@ -1090,20 +1090,26 @@
         let currentSort = { field: 'idle', direction: 'desc' };
         let chatHistory = [];
 
-        // PHASE 2: Status Update Functionality
+			
+			
+			
+// PHASE 2: Status Update Functionality
         let statusOptions = null;
+        let statusOptionsCache = null;
 
         // Load status options with caching
         async function loadStatusOptions() {
-            if (statusOptions) return statusOptions;
+            if (statusOptionsCache) return statusOptionsCache;
             
             try {
+                console.log('🔄 Loading status options from ProWorkflow...');
                 const response = await fetch('/api/rest/status-options');
                 const data = await response.json();
-                statusOptions = data.statuses;
-                return statusOptions;
+                statusOptionsCache = data.statuses || [];
+                console.log(`✅ Loaded ${statusOptionsCache.length} status options`);
+                return statusOptionsCache;
             } catch (error) {
-                console.error('Failed to load status options:', error);
+                console.error('❌ Failed to load status options:', error);
                 return [];
             }
         }
@@ -1117,6 +1123,7 @@
                 const item = document.createElement('div');
                 item.className = 'status-dropdown-item';
                 item.style.background = '#' + status.color;
+                item.style.color = 'white';
                 item.textContent = status.name;
                 
                 if (status.name === currentStatusText) {
@@ -1140,12 +1147,18 @@
                 e.stopPropagation();
                 
                 const projectRow = e.target.closest('tr');
-                const projectId = projectRow.querySelector('.project-number').textContent;
+                const projectNumberElement = projectRow.querySelector('.project-number');
+                const projectId = projectNumberElement.textContent.trim();
                 const currentStatusText = e.target.textContent.trim();
+                
+                console.log(`📋 Status badge clicked - Project: ${projectId}, Current: ${currentStatusText}`);
                 
                 // Load status options
                 const statuses = await loadStatusOptions();
-                if (statuses.length === 0) return;
+                if (statuses.length === 0) {
+                    alert('Unable to load status options. Please try again.');
+                    return;
+                }
                 
                 // Create and position dropdown
                 const dropdown = createStatusDropdown(statuses, currentStatusText, async (selectedStatus) => {
@@ -1170,6 +1183,15 @@
 
         // Update project status
         async function updateProjectStatus(projectId, statusObj, badgeElement) {
+            console.log(`🔄 Updating project ${projectId} to status: ${statusObj.name} (ID: ${statusObj.id})`);
+            
+            // Optimistic update
+            const originalText = badgeElement.textContent;
+            const originalColor = badgeElement.style.background;
+            
+            badgeElement.textContent = statusObj.name;
+            badgeElement.style.background = '#' + statusObj.color;
+            
             try {
                 const response = await fetch(`/api/rest/project/${projectId}/status`, {
                     method: 'PUT',
@@ -1180,20 +1202,29 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    // Update badge immediately
-                    badgeElement.textContent = statusObj.name;
-                    badgeElement.style.background = '#' + statusObj.color;
-                    console.log('Status updated successfully!');
+                    console.log('✅ Status updated successfully in ProWorkflow!');
+                    // Reload projects to get fresh data
+                    setTimeout(() => loadProjects(), 1000);
                 } else {
-                    alert('Failed to update status');
+                    throw new Error(result.error || 'Update failed');
                 }
                 
             } catch (error) {
-                console.error('Error updating status:', error);
-                alert('Error updating status');
+                console.error('❌ Error updating status:', error);
+                
+                // Rollback optimistic update
+                badgeElement.textContent = originalText;
+                badgeElement.style.background = originalColor;
+                
+                alert('Failed to update status: ' + error.message);
             }
         }
-
+			
+			
+			
+			
+			
+			
         // THREADING HELPER FUNCTIONS
         function buildMessageThreads(messages) {
             const messageMap = new Map();
@@ -1469,7 +1500,8 @@
                         class: 'project-link'
                     },
                     { content: project.owner },
-{ content: project.customstatus || project.customStatus || 'Unknown', style: `background: ${project.statusColor}; color: white;`, class: 'status-badge' },
+									{ content: project.customstatus || project.customStatus || 'Unknown', style: `background: ${project.statusColor}; color: white;`, class: 'status-badge', dataProjectId: project.projectId },
+									
                     { content: project.startdate || '-' },
                     { content: project.dueDate || '-' },
                     { 
@@ -1490,10 +1522,11 @@
                         link.className = cellData.class || '';
                         link.textContent = cellData.content;
                         td.appendChild(link);
-                    } else {
+										} else {
                         const span = document.createElement('span');
                         if (cellData.class) span.className = cellData.class;
                         if (cellData.style) span.setAttribute('style', cellData.style);
+                        if (cellData.dataProjectId) span.setAttribute('data-project-id', cellData.dataProjectId);
                         span.textContent = cellData.content;
                         td.appendChild(span);
                         
@@ -1648,118 +1681,16 @@
             });
             
             // Preload status options
-            setTimeout(loadStatusOptions, 2000);
+          //  setTimeout(loadStatusOptions, 2000);
+					
+					// Preload status options
+            loadStatusOptions();
             
             // Load projects after everything is set up
             loadProjects();
         });
 			
-			
-			
-			// ... all your existing JavaScript functions ...
-
-// Extract status options from current project data (no hardcoding!)
-function getStatusOptionsFromProjects() {
-    const statusSet = new Set();
-    
-    // Extract all unique statuses from current projects
-    allProjects.forEach(project => {
-        if (project.customStatus || project.customstatus) {
-            statusSet.add(project.customStatus || project.customstatus);
-        }
-    });
-    
-    return Array.from(statusSet).sort();
-}
-
-// Simple status update function
-async function updateProjectStatus(projectId, newStatus) {
-    try {
-        console.log(`Updating project ${projectId} to status: ${newStatus}`);
-        
-        const response = await fetch(`/api/rest/project/${projectId}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus })
-        });
-        
-        if (response.ok) {
-            console.log('Status updated successfully');
-            loadProjects(); // Reload to show changes
-        } else {
-            console.error('Status update failed:', response.status);
-        }
-    } catch (error) {
-        console.error('Error updating status:', error);
-    }
-}
-
-// Simple status update function
-async function updateProjectStatus(projectId, newStatus) {
-    try {
-        console.log(`Updating project ${projectId} to status: ${newStatus}`);
-        
-        const response = await fetch(`/api/rest/project/${projectId}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: newStatus })
-        });
-        
-        if (response.ok) {
-            console.log('Status updated successfully');
-            loadProjects();
-        } else {
-            console.error('Status update failed:', response.status);
-        }
-    } catch (error) {
-        console.error('Error updating status:', error);
-    }
-}
-
-// Simple click test - just alert for now
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        console.log('Attaching click handlers...');
-        document.querySelectorAll('.status-badge').forEach((badge, index) => {
-            badge.style.cursor = 'pointer';
-            badge.addEventListener('click', function() {
-                const currentStatus = this.textContent.trim();
-                const newStatus = prompt(`Change status from "${currentStatus}" to:`);
-                if (newStatus && newStatus !== currentStatus) {
-                    console.log(`Would update project ${index} to: ${newStatus}`);
-                    // We'll add the real update logic once this basic test works
-                }
-            });
-        });
-        console.log('Click handlers attached');
-    }, 3000); // Wait 3 seconds for projects to load
-});
-
-// Hook into the existing renderProjects function
-const originalRenderProjects = renderProjects;
-renderProjects = function(projects) {
-    originalRenderProjects(projects);
-};
-
-			
-			// Simple status update test
-setTimeout(function() {
-    console.log('Adding status click handlers...');
-    var badges = document.querySelectorAll('.status-badge');
-    console.log('Found status badges:', badges.length);
-    
-    for (var i = 0; i < badges.length; i++) {
-        badges[i].style.cursor = 'pointer';
-        badges[i].onclick = function() {
-            var currentStatus = this.textContent.trim();
-            var newStatus = prompt('Change status from "' + currentStatus + '" to:');
-            if (newStatus && newStatus !== currentStatus) {
-                console.log('Would update to:', newStatus);
-                alert('Status update feature working! (API call would go here)');
-            }
-        };
-    }
-}, 3000);
+	
 			
     </script>
 

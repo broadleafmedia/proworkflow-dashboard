@@ -837,25 +837,82 @@ app.get('/api/rest/tasks', async (req, res) => {
   }
 });
 // Project status update route
+// Update project status with full project data (ProWorkflow requirement)
 app.put('/api/rest/project/:id/status', async (req, res) => {
   try {
     const projectId = req.params.id;
-    const { status } = req.body;
+    const { statusId } = req.body;
     
-    console.log(`Updating project ${projectId} to status: ${status}`);
+    console.log(`Updating project ${projectId} to status ID: ${statusId}`);
     
-    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', {
-      customstatus: status
-    });
+    // First get current project data (ProWorkflow requires all fields)
+    const currentProject = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`);
+    const project = currentProject.project;
+    
+    // Update with new status, preserving all required fields
+    const updateData = {
+      customstatusid: statusId,
+      title: project.title,
+      description: project.description || '',
+      companyid: project.companyid,
+      managerid: project.managerid,
+      categoryid: project.categoryid || null,
+      duedate: project.duedate || null,
+      startdate: project.startdate || null,
+      budget: project.budget || 0,
+      groupid: project.groupid || null,
+      divisionid: project.divisionid || null
+    };
+    
+    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', updateData);
     
     console.log('Status update successful');
-    res.json(result);
+    
+    // Clear cache to force refresh
+    cache.clear();
+    
+    res.json({ 
+      success: true, 
+      message: 'Status updated successfully',
+      result: result 
+    });
   } catch (error) {
     console.error('Status update error:', error);
-    res.status(500).json({ error: 'Failed to update project status' });
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to update project status',
+      details: error.response?.data || error.message
+    });
   }
 });
 
+// Get custom status options for Team 9 (Shared Services)
+app.get('/api/rest/status-options', async (req, res) => {
+  try {
+    console.log('=== FETCHING CUSTOM STATUS OPTIONS ===');
+    
+    const statusData = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
+    
+    console.log(`Found ${statusData.count || 0} custom statuses for Team 9`);
+    
+    // Sort by display order
+    if (statusData.customstatuses) {
+      statusData.customstatuses.sort((a, b) => a.displayorder - b.displayorder);
+    }
+    
+    res.json({
+      statuses: statusData.customstatuses || [],
+      count: statusData.count || 0
+    });
+  } catch (error) {
+    console.error('Error fetching custom statuses:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch status options',
+      statuses: [],
+      count: 0
+    });
+  }
+});
 // PERFORMANCE OPTIMIZED: projects-table route with team filtering and messages
 app.get('/api/rest/projects-table', async (req, res) => {
   const { manager, sort } = req.query;

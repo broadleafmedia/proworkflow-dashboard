@@ -837,39 +837,77 @@ app.get('/api/rest/tasks', async (req, res) => {
   }
 });
 // Project status update route
-// Update project status with full project data (ProWorkflow requirement)
 app.put('/api/rest/project/:id/status', async (req, res) => {
   try {
     const projectId = req.params.id;
     const { statusId } = req.body;
     
-    console.log(`Updating project ${projectId} to status ID: ${statusId}`);
+    console.log(`? Updating project ${projectId} to status ID: ${statusId}`);
     
-// Get the current status name from status options to send the correct value
-const statusOptionsResponse = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
-const statusOptions = statusOptionsResponse.customstatuses || [];
-const selectedStatus = statusOptions.find(s => s.id == statusId);
+    // First, get the current project data
+    const projectResponse = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`);
+    const project = projectResponse.project;
+    
+    if (!project) {
+      throw new Error(`Project ${projectId} not found`);
+    }
+    
+    console.log(`? Current project: ${project.title}`);
+    
+    // Get the current status name from status options to send the correct value
+    const statusOptionsResponse = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
+    const statusOptions = statusOptionsResponse.customstatuses || [];
+    const selectedStatus = statusOptions.find(s => s.id == statusId);
 
-if (!selectedStatus) {
-  throw new Error(`Status ID ${statusId} not found in available statuses`);
-}
+    if (!selectedStatus) {
+      throw new Error(`Status ID ${statusId} not found in available statuses`);
+    }
 
-// Update with status name instead of ID
+    console.log(`? Changing status to: ${selectedStatus.name}`);
+
+// Build complete update payload with all required fields
 const updateData = {
-  customstatusid: parseInt(statusId), // Make sure it's a number, not string
+  customstatusid: selectedStatus.id, // Keep as ID
   title: project.title,
   description: project.description || '',
   companyid: project.companyid,
   managerid: project.managerid,
-  categoryid: project.categoryid || null,
-  duedate: project.duedate || null,
-  startdate: project.startdate || null,
-  budget: project.budget || 0,
-  groupid: project.groupid || null,
-  divisionid: project.divisionid || null
+  categoryid: project.categoryid,
+  duedate: project.duedate,
+  startdate: project.startdate,
+  budget: project.budget,
+  groupid: project.groupid,
+  divisionid: project.divisionid
 };
 
-console.log('Sending status ID as number:', parseInt(statusId));
+// Remove any null/undefined values that might cause issues
+Object.keys(updateData).forEach(key => {
+  if (updateData[key] === null || updateData[key] === undefined) {
+    delete updateData[key];
+  }
+});
+
+    
+// ADD THIS DEBUG CODE HERE:
+console.log('? DEBUGGING PROJECT UPDATE:');
+console.log('Selected status object:', selectedStatus);
+console.log('Original project data:', project);
+console.log('Update payload being sent:', JSON.stringify(updateData, null, 2));
+
+// Test with a minimal payload first
+const minimalUpdate = {
+  customstatusid: selectedStatus.id
+};
+
+console.log('? Trying minimal update first:', minimalUpdate);
+
+// REPLACE the original API call with this minimal test:
+const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', minimalUpdate);
+		
+    // Make the update request to ProWorkflow
+    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', updateData);
+    
+    console.log('? ProWorkflow update successful:', result);
     
     // Clear cache to force refresh
     cache.clear();
@@ -880,7 +918,7 @@ console.log('Sending status ID as number:', parseInt(statusId));
       result: result 
     });
   } catch (error) {
-    console.error('Status update error:', error);
+    console.error('? Status update error:', error);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to update project status',
@@ -888,7 +926,9 @@ console.log('Sending status ID as number:', parseInt(statusId));
     });
   }
 });
-
+			
+			
+			
 // Get custom status options for Team 9 (Shared Services)
 app.get('/api/rest/status-options', async (req, res) => {
   try {

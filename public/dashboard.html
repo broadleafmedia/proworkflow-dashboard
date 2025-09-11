@@ -1494,6 +1494,13 @@ async function updateProjectStatus(projectId, statusObj, badgeElement) {
                 
                 const communicationInfo = getProjectCommunication(project);
                 
+							// Debug project IDs
+console.log(`🔍 Project ${index}:`, {
+  number: project.number,
+  projectId: project.projectId,
+  id: project.id,
+  title: project.title
+});
                 const cells = [
                     { content: project.number, class: 'project-number' },
                     { 
@@ -1502,8 +1509,7 @@ async function updateProjectStatus(projectId, statusObj, badgeElement) {
                         class: 'project-link'
                     },
                     { content: project.owner },
-									{ content: project.customstatus || project.customStatus || 'Unknown', style: `background: ${project.statusColor}; color: white;`, class: 'status-badge', dataProjectId: project.projectId },
-									
+{ content: project.customstatus || project.customStatus || 'Unknown', style: `background: ${project.statusColor}; color: white;`, class: 'status-badge', dataProjectId: project.projectId || project.id },
                     { content: project.startdate || '-' },
                     { content: project.dueDate || '-' },
                     { 

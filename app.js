@@ -845,28 +845,31 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
     
     console.log(`Updating project ${projectId} to status ID: ${statusId}`);
     
-    // First get current project data (ProWorkflow requires all fields)
-    const currentProject = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`);
-    const project = currentProject.project;
-    
-    // Update with new status, preserving all required fields
-    const updateData = {
-      customstatusid: statusId,
-      title: project.title,
-      description: project.description || '',
-      companyid: project.companyid,
-      managerid: project.managerid,
-      categoryid: project.categoryid || null,
-      duedate: project.duedate || null,
-      startdate: project.startdate || null,
-      budget: project.budget || 0,
-      groupid: project.groupid || null,
-      divisionid: project.divisionid || null
-    };
-    
-    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', updateData);
-    
-    console.log('Status update successful');
+// Get the current status name from status options to send the correct value
+const statusOptionsResponse = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
+const statusOptions = statusOptionsResponse.customstatuses || [];
+const selectedStatus = statusOptions.find(s => s.id == statusId);
+
+if (!selectedStatus) {
+  throw new Error(`Status ID ${statusId} not found in available statuses`);
+}
+
+// Update with status name instead of ID
+const updateData = {
+  customstatusid: parseInt(statusId), // Make sure it's a number, not string
+  title: project.title,
+  description: project.description || '',
+  companyid: project.companyid,
+  managerid: project.managerid,
+  categoryid: project.categoryid || null,
+  duedate: project.duedate || null,
+  startdate: project.startdate || null,
+  budget: project.budget || 0,
+  groupid: project.groupid || null,
+  divisionid: project.divisionid || null
+};
+
+console.log('Sending status ID as number:', parseInt(statusId));
     
     // Clear cache to force refresh
     cache.clear();

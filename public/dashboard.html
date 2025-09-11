@@ -1146,10 +1146,10 @@
                 e.preventDefault();
                 e.stopPropagation();
                 
-                const projectRow = e.target.closest('tr');
-                const projectNumberElement = projectRow.querySelector('.project-number');
-                const projectId = projectNumberElement.textContent.trim();
-                const currentStatusText = e.target.textContent.trim();
+const statusBadge = e.target;
+const projectId = statusBadge.getAttribute('data-project-id');
+const currentStatusText = e.target.textContent.trim();
+console.log('🔍 Using project ID:', projectId);
                 
                 console.log(`📋 Status badge clicked - Project: ${projectId}, Current: ${currentStatusText}`);
                 
@@ -1181,45 +1181,47 @@
             }
         });
 
-        // Update project status
-        async function updateProjectStatus(projectId, statusObj, badgeElement) {
-            console.log(`🔄 Updating project ${projectId} to status: ${statusObj.name} (ID: ${statusObj.id})`);
-            
-            // Optimistic update
-            const originalText = badgeElement.textContent;
-            const originalColor = badgeElement.style.background;
-            
-            badgeElement.textContent = statusObj.name;
-            badgeElement.style.background = '#' + statusObj.color;
-            
-            try {
-                const response = await fetch(`/api/rest/project/${projectId}/status`, {
-                    method: 'PUT',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ statusId: statusObj.id })
-                });
-                
-                const result = await response.json();
-                
-                if (result.success) {
-                    console.log('✅ Status updated successfully in ProWorkflow!');
-                    // Reload projects to get fresh data
-                    setTimeout(() => loadProjects(), 1000);
-                } else {
-                    throw new Error(result.error || 'Update failed');
-                }
-                
-            } catch (error) {
-                console.error('❌ Error updating status:', error);
-                
-                // Rollback optimistic update
-                badgeElement.textContent = originalText;
-                badgeElement.style.background = originalColor;
-                
-                alert('Failed to update status: ' + error.message);
-            }
+// Update project status
+async function updateProjectStatus(projectId, statusObj, badgeElement) {
+    console.log(`🔄 Updating project ${projectId} to status: ${statusObj.name} (ID: ${statusObj.id})`);
+    console.log('📤 Sending data:', { statusId: statusObj.id });
+    
+    // Optimistic update
+    const originalText = badgeElement.textContent;
+    const originalColor = badgeElement.style.background;
+    
+    badgeElement.textContent = statusObj.name;
+    badgeElement.style.background = '#' + statusObj.color;
+    
+    try {
+        const response = await fetch(`/api/rest/project/${projectId}/status`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ statusId: statusObj.id })
+        });
+        
+        console.log('📥 Response status:', response.status);
+        const result = await response.json();
+        console.log('📥 Response data:', result);
+        
+        if (result.success) {
+            console.log('✅ Status updated successfully in ProWorkflow!');
+            // Reload projects to get fresh data
+            setTimeout(() => loadProjects(), 1000);
+        } else {
+            throw new Error(result.error || 'Update failed');
         }
-			
+        
+    } catch (error) {
+        console.error('❌ Error updating status:', error);
+        
+        // Rollback optimistic update
+        badgeElement.textContent = originalText;
+        badgeElement.style.background = originalColor;
+        
+        alert('Failed to update status: ' + error.message);
+    }
+}
 			
 			
 			

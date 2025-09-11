@@ -1353,27 +1353,6 @@ app.get('/api/rest/task/:id/messages', async (req, res) => {
 });
 
 
-// Project status update route
-app.put('/api/rest/project/:id/status', async (req, res) => {
-  try {
-    const projectId = req.params.id;
-    const { status } = req.body;
-    
-    console.log(`Updating project ${projectId} to status: ${status}`);
-    
-    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', {
-      customstatus: status
-    });
-    
-    console.log('Status update successful');
-    res.json(result);
-  } catch (error) {
-    console.error('Status update error:', error);
-    res.status(500).json({ error: 'Failed to update project status' });
-  }
-});
-
-
 // ASSIGNMENT QUEUE API ROUTES
 // Get all project requests (Creative Services only)
 app.get('/api/rest/project-requests', async (req, res) => {

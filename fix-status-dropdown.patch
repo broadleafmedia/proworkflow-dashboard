@@ -1,0 +1,151 @@
+diff --git a/public/dashboard.html b/public/dashboard.html
+index 1234567..89abcde 100644
+--- a/public/dashboard.html
++++ b/public/dashboard.html
+@@ -1185,7 +1185,45 @@
+-        // Update project status
+-        async function updateProjectStatus(projectId, statusObj, badgeElement) {
+-            try {
+-                const response = await fetch(`/api/rest/project/${projectId}/status`, {
+-                    method: 'PUT',
+-                    headers: {'Content-Type': 'application/json'},
+-                    body: JSON.stringify({ statusId: statusObj.id })
+-                });
+-                
+-                const result = await response.json();
+-                
+-                if (result.success) {
+-                    // Update badge immediately
+-                    badgeElement.textContent = statusObj.name;
+-                    badgeElement.style.background = '#' + statusObj.color;
+-                    console.log('Status updated successfully!');
+-                } else {
+-                    alert('Failed to update status');
+-                }
+-                
+-            } catch (error) {
+-                console.error('Error updating status:', error);
+-                alert('Error updating status');
+-            }
+-        }
++        // Update project status with optimistic UI + rollback
++        async function updateProjectStatus(projectId, statusObj, badgeEl) {
++            const prev = {
++                text: badgeEl.textContent,
++                bg: badgeEl.style.background
++            };
++
++            // Optimistic update
++            badgeEl.textContent = statusObj.name;
++            badgeEl.style.background = '#' + statusObj.color;
++            badgeEl.style.opacity = '0.6';
++
++            try {
++                const res = await fetch(`/api/rest/project/${projectId}/status`, {
++                    method: 'PUT',
++                    headers: { 'Content-Type': 'application/json' },
++                    body: JSON.stringify({ statusId: statusObj.id })
++                });
++                const result = await res.json();
++
++                if (res.ok && result.success) {
++                    badgeEl.style.opacity = '1';
++                    // highlight rush
++                    const row = badgeEl.closest('tr');
++                    if (row) {
++                        row.style.backgroundColor =
++                            (statusObj.color || '').toUpperCase() === 'FF0000'
++                                ? '#fef3c7'
++                                : '';
++                    }
++                } else {
++                    throw new Error(result.error || 'Update failed');
++                }
++            } catch (err) {
++                // Roll back
++                badgeEl.textContent = prev.text;
++                badgeEl.style.background = prev.bg;
++                badgeEl.style.opacity = '1';
++                alert('Could not update status: ' + err.message);
++            }
++        }
+ 
+-        // Simple click test and duplicate handlers (REMOVE THIS BLOCK)
+-        setTimeout(() => {
+-            document.querySelectorAll('.status-badge').forEach(badge => {
+-                badge.addEventListener('click', () => {
+-                    const newStatus = prompt('Enter new status');
+-                    if (newStatus) {
+-                        badge.textContent = newStatus;
+-                        badge.style.background = '#999';
+-                    }
+-                });
+-            });
+-        }, 3000);
++        /* Removed duplicate test click handlers that interfered with dropdown */
+diff --git a/app.js b/app.js
+index 2345678..bcdef01 100644
+--- a/app.js
++++ b/app.js
+@@ -860,16 +860,46 @@
+-// UPDATE PROJECT CUSTOM STATUS (old)
+-app.put('/api/rest/project/:id/status', async (req, res) => {
+-  try {
+-    const projectId = req.params.id;
+-    const { status } = req.body;
+-
+-    console.log(`Updating project ${projectId} to status: ${status}`);
+-
+-    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', {
+-      customstatus: status
+-    });
+-
+-    console.log('Status update result:', result);
+-    res.json(result);
+-  } catch (error) {
+-    console.error('Error updating status:', error);
+-    res.status(500).json({ error: 'Failed to update status' });
+-  }
+-});
++// UPDATE PROJECT CUSTOM STATUS (fetch full project, then PUT all fields)
++app.put('/api/rest/project/:id/status', async (req, res) => {
++  const { id } = req.params;
++  const { statusId } = req.body || {};
++
++  if (!statusId) {
++    return res.status(400).json({ success: false, error: 'Missing statusId' });
++  }
++
++  try {
++    // Fetch current project data
++    const projectResp = await ProWorkflowAPI.makeRequest(`/projects/${id}`);
++    const project = projectResp?.project || projectResp?.data?.project || projectResp?.data || projectResp;
++
++    if (!project || !project.id) {
++      return res.status(404).json({ success: false, error: 'Project not found' });
++    }
++
++    // Build full update payload
++    const updateData = {
++      customstatusid: Number(statusId),
++      title: project.title ?? project.name ?? '',
++      description: project.description ?? '',
++      companyid: project.companyid ?? project.company?.id ?? null,
++      managerid: project.managerid ?? project.manager?.id ?? null,
++      categoryid: project.categoryid ?? null,
++      duedate: project.duedate ?? null,
++      startdate: project.startdate ?? null,
++      budget: project.budget ?? null,
++      groupid: project.groupid ?? project.group?.id ?? null,
++      divisionid: project.divisionid ?? project.division?.id ?? null
++    };
++
++    await ProWorkflowAPI.makeRequest(`/projects/${id}`, 'PUT', updateData);
++
++    res.json({ success: true });
++  } catch (err) {
++    const code = err?.response?.status || 500;
++    console.error('Project status update error:', err?.response?.data || err.message);
++    res.status(code).json({ success: false, error: 'Could not update project status' });
++  }
++});

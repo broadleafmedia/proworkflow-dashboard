@@ -836,6 +836,8 @@ app.get('/api/rest/tasks', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch tasks' });
   }
 });
+
+
 // Project status update route
 app.put('/api/rest/project/:id/status', async (req, res) => {
   try {
@@ -854,7 +856,7 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
     
     console.log(`? Current project: ${project.title}`);
     
-    // Get the current status name from status options to send the correct value
+    // Get the current status name from status options
     const statusOptionsResponse = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
     const statusOptions = statusOptionsResponse.customstatuses || [];
     const selectedStatus = statusOptions.find(s => s.id == statusId);
@@ -865,45 +867,23 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
 
     console.log(`? Changing status to: ${selectedStatus.name}`);
 
-// Build complete update payload with all required fields
-const updateData = {
-  customstatusid: selectedStatus.id, // Keep as ID
-  title: project.title,
-  description: project.description || '',
-  companyid: project.companyid,
-  managerid: project.managerid,
-  categoryid: project.categoryid,
-  duedate: project.duedate,
-  startdate: project.startdate,
-  budget: project.budget,
-  groupid: project.groupid,
-  divisionid: project.divisionid
-};
+    // Build update payload using STATUS NAME (not ID)
+    const updateData = {
+      customstatus: selectedStatus.name,  // ? Use status name
+      title: project.title,
+      description: project.description || '',
+      companyid: project.companyid,
+      managerid: project.managerid,
+      categoryid: project.categoryid || null,
+      duedate: project.duedate || null,
+      startdate: project.startdate || null,
+      budget: project.budget || 0,
+      groupid: project.groupid || null,
+      divisionid: project.divisionid || null
+    };
 
-// Remove any null/undefined values that might cause issues
-Object.keys(updateData).forEach(key => {
-  if (updateData[key] === null || updateData[key] === undefined) {
-    delete updateData[key];
-  }
-});
-
+    console.log('? Sending status NAME payload:', JSON.stringify(updateData, null, 2));
     
-// ADD THIS DEBUG CODE HERE:
-console.log('? DEBUGGING PROJECT UPDATE:');
-console.log('Selected status object:', selectedStatus);
-console.log('Original project data:', project);
-console.log('Update payload being sent:', JSON.stringify(updateData, null, 2));
-
-// Test with a minimal payload first
-const minimalUpdate = {
-  customstatusid: selectedStatus.id
-};
-
-console.log('? Trying minimal update first:', minimalUpdate);
-
-// REPLACE the original API call with this minimal test:
-const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', minimalUpdate);
-		
     // Make the update request to ProWorkflow
     const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', updateData);
     
@@ -919,6 +899,7 @@ const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT',
     });
   } catch (error) {
     console.error('? Status update error:', error);
+    console.error('? Error details:', error.response?.data);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to update project status',
@@ -926,7 +907,6 @@ const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT',
     });
   }
 });
-			
 			
 			
 // Get custom status options for Team 9 (Shared Services)

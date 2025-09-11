@@ -496,37 +496,37 @@ app.get('/login', (req, res) => {
 app.post('/auth/login', async (req, res) => {
   const { username, password } = req.body;
   
-  console.log('? Login attempt:');
-  console.log('  Username:', username);
-  console.log('  Password:', password);
+  console.log('Login attempt:');
+  console.log('Username:', username);
+  console.log('Password:', password);
   
   const user = ADMIN_USERS.find(u => u.username === username);
-  console.log('  User found:', !!user);
+  console.log('User found:', !!user);
   
   if (user) {
-    console.log('  Stored hash:', user.passwordHash);
-    console.log('  Hash length:', user.passwordHash.length);
-    console.log('  Hash starts with $2b$:', user.passwordHash.startsWith('$2b$'));
+    console.log('Stored hash:', user.passwordHash);
+    console.log('Hash length:', user.passwordHash.length);
+    console.log('Hash starts with $2b$:', user.passwordHash.startsWith('$2b$'));
     
     try {
       const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-      console.log('  Password match result:', passwordMatch);
+      console.log('Password match result:', passwordMatch);
       
       if (passwordMatch) {
         req.session.authenticated = true;
         req.session.user = { username: user.username, role: user.role };
-        console.log('? Login successful');
+        console.log('Login successful');
         res.redirect('/');
       } else {
-        console.log('? Password mismatch');
+        console.log('Password mismatch');
         res.redirect('/login?error=1');
       }
     } catch (error) {
-      console.log('? Bcrypt error:', error.message);
+      console.log('Bcrypt error:', error.message);
       res.redirect('/login?error=1');
     }
   } else {
-    console.log('? User not found');
+    console.log('User not found');
     res.redirect('/login?error=1');
   }
 });

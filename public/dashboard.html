@@ -1181,48 +1181,118 @@ console.log('🔍 Using project ID:', projectId);
             }
         });
 
-// Update project status
+// Enhanced updateProjectStatus function with comprehensive debugging
 async function updateProjectStatus(projectId, statusObj, badgeElement) {
-    console.log(`🔄 Updating project ${projectId} to status: ${statusObj.name} (ID: ${statusObj.id})`);
+    // 🔍 STEP 1: COMPREHENSIVE DEBUG LOGGING
+    console.log('🚀 === updateProjectStatus DEBUG START ===');
+    console.log('📋 Function called with parameters:', {
+        projectId: projectId,
+        projectIdType: typeof projectId,
+        projectIdValue: JSON.stringify(projectId),
+        isNull: projectId === null,
+        isUndefined: projectId === undefined,
+        isEmpty: projectId === '',
+        statusObj: statusObj,
+        statusObjName: statusObj?.name,
+        statusObjId: statusObj?.id,
+        badgeElement: badgeElement
+    });
+
+    // 🔍 Check the badge element's data attributes
+    console.log('🏷️ Badge element data attributes:', {
+        dataProjectId: badgeElement.getAttribute('data-project-id'),
+        datasetProjectId: badgeElement.dataset.projectId,
+        allDataAttributes: Object.keys(badgeElement.dataset),
+        elementId: badgeElement.id,
+        elementClassName: badgeElement.className
+    });
+
+    // 🔍 Check if we can find the project ID from the DOM hierarchy
+    const tableRow = badgeElement.closest('tr');
+    if (tableRow) {
+        console.log('📊 Table row context:', {
+            rowIndex: tableRow.rowIndex,
+            rowCells: Array.from(tableRow.cells).map((cell, index) => ({
+                index: index,
+                content: cell.textContent.trim().substring(0, 50),
+                hasDataAttributes: Object.keys(cell.dataset).length > 0 ? Object.keys(cell.dataset) : 'none'
+            }))
+        });
+    }
+
+    // 🚨 VALIDATION: Stop if project ID is invalid
+    if (!projectId || projectId === 'null' || projectId === 'undefined' || projectId === null || projectId === undefined) {
+        console.error('❌ CRITICAL ERROR: Invalid project ID detected!');
+        console.error('❌ Cannot proceed with status update');
+        console.error('❌ Project ID value:', projectId, '(type:', typeof projectId, ')');
+        
+        // Show user-friendly error
+        alert(`Cannot update status: Invalid project ID (${projectId}). Please refresh the page and try again.`);
+        return;
+    }
+
+    // 🔍 Log the API URL that will be called
+    const apiUrl = `/api/rest/project/${projectId}/status`;
+    console.log('🌐 API URL that will be called:', apiUrl);
+
+    console.log(`🔄 Proceeding with update - Project: ${projectId} to status: ${statusObj.name} (ID: ${statusObj.id})`);
     console.log('📤 Sending data:', { statusId: statusObj.id });
     
-    // Optimistic update
+    // Optimistic update (visual feedback)
     const originalText = badgeElement.textContent;
     const originalColor = badgeElement.style.background;
     
     badgeElement.textContent = statusObj.name;
     badgeElement.style.background = '#' + statusObj.color;
+    console.log('✨ Applied optimistic update to badge');
     
     try {
-        const response = await fetch(`/api/rest/project/${projectId}/status`, {
+        console.log('📡 Making API call...');
+        const response = await fetch(apiUrl, {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ statusId: statusObj.id })
         });
         
-        console.log('📥 Response status:', response.status);
+        console.log('📥 Response received:', {
+            status: response.status,
+            statusText: response.statusText,
+            ok: response.ok,
+            url: response.url
+        });
+        
         const result = await response.json();
-        console.log('📥 Response data:', result);
+        console.log('📋 Response data:', result);
         
         if (result.success) {
             console.log('✅ Status updated successfully in ProWorkflow!');
             // Reload projects to get fresh data
-            setTimeout(() => loadProjects(), 1000);
+            setTimeout(() => {
+                console.log('🔄 Reloading projects...');
+                loadProjects();
+            }, 1000);
         } else {
             throw new Error(result.error || 'Update failed');
         }
         
     } catch (error) {
         console.error('❌ Error updating status:', error);
+        console.error('❌ Full error object:', {
+            message: error.message,
+            name: error.name,
+            stack: error.stack
+        });
         
         // Rollback optimistic update
         badgeElement.textContent = originalText;
         badgeElement.style.background = originalColor;
+        console.log('↩️ Rolled back optimistic update');
         
         alert('Failed to update status: ' + error.message);
     }
+
+    console.log('🏁 === updateProjectStatus DEBUG END ===');
 }
-			
 			
 			
 			
@@ -1414,162 +1484,167 @@ async function updateProjectStatus(projectId, statusObj, badgeElement) {
             };
         }
 
-        function renderProjects(projects) {
-            console.log('🎨 Rendering projects:', projects.length);
+			
+			
+// Fixed renderProjects function - extract this section from your dashboard.html
+function renderProjects(projects) {
+    console.log('🎨 Rendering projects:', projects.length);
+    
+    if (!projects || projects.length === 0) {
+        document.getElementById('projectsContent').innerHTML = 
+            '<div class="no-projects">No projects found with current filters.</div>';
+        return;
+    }
+
+    const container = document.getElementById('projectsContent');
+    container.innerHTML = '';
+    
+    const table = document.createElement('table');
+    table.className = 'projects-table';
+    
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    
+    const headerConfig = [
+        { text: '', field: null },
+        { text: 'Project #', field: 'number' },
+        { text: 'Title', field: 'title' },
+        { text: 'Manager', field: 'manager' },
+        { text: 'Custom Status', field: 'status' },
+        { text: 'Start', field: null },
+        { text: 'Due Date', field: 'dueDate' },
+        { text: 'Communication', field: 'communication' },
+        { text: 'Days Idle', field: 'idle' }
+    ];
+
+    headerConfig.forEach(config => {
+        const th = document.createElement('th');
+        th.textContent = config.text;
+        
+        if (config.field) {
+            th.className = 'sortable';
+            th.onclick = () => sortByHeader(config.field);
             
-            if (!projects || projects.length === 0) {
-                document.getElementById('projectsContent').innerHTML = 
-                    '<div class="no-projects">No projects found with current filters.</div>';
-                return;
+            const indicator = document.createElement('span');
+            indicator.className = 'sort-indicator';
+            
+            if (currentSort.field === config.field) {
+                indicator.className += ' active';
+                indicator.textContent = currentSort.direction === 'asc' ? ' ↑' : ' ↓';
+            } else {
+                indicator.textContent = ' ↕';
             }
-
-            const container = document.getElementById('projectsContent');
-            container.innerHTML = '';
             
-            const table = document.createElement('table');
-            table.className = 'projects-table';
-            
-            const thead = document.createElement('thead');
-            const headerRow = document.createElement('tr');
-            
-            const headerConfig = [
-                { text: '', field: null },
-                { text: 'Project #', field: 'number' },
-                { text: 'Title', field: 'title' },
-                { text: 'Manager', field: 'manager' },
-                { text: 'Custom Status', field: 'status' },
-                { text: 'Start', field: null },
-                { text: 'Due Date', field: 'dueDate' },
-                { text: 'Communication', field: 'communication' },
-                { text: 'Days Idle', field: 'idle' }
-            ];
-
-            headerConfig.forEach(config => {
-                const th = document.createElement('th');
-                th.textContent = config.text;
-                
-                if (config.field) {
-                    th.className = 'sortable';
-                    th.onclick = () => sortByHeader(config.field);
-                    
-                    const indicator = document.createElement('span');
-                    indicator.className = 'sort-indicator';
-                    
-                    if (currentSort.field === config.field) {
-                        indicator.className += ' active';
-                        indicator.textContent = currentSort.direction === 'asc' ? ' ↑' : ' ↓';
-                    } else {
-                        indicator.textContent = ' ↕';
-                    }
-                    
-                    th.appendChild(indicator);
-                }
-                
-                headerRow.appendChild(th);
-            });
-
-            thead.appendChild(headerRow);
-            table.appendChild(thead);
-            
-            const tbody = document.createElement('tbody');
-            
-            projects.forEach((project, index) => {
-                const row = document.createElement('tr');
-                
-                const isRush = project.customStatus && project.customStatus.toLowerCase().includes('rush');
-                if (isRush) {
-                    row.style.backgroundColor = '#fef3c7';
-                }
-                
-                const expandCell = document.createElement('td');
-                const expandBtn = document.createElement('button');
-                expandBtn.className = 'expand-btn';
-                expandBtn.onclick = () => toggleProject(project.projectId, expandBtn);
-                
-                const arrow = document.createElement('div');
-                arrow.className = 'expand-arrow';
-                expandBtn.appendChild(arrow);
-                expandCell.appendChild(expandBtn);
-                row.appendChild(expandCell);
-                
-                const communicationInfo = getProjectCommunication(project);
-                
-							// Debug project IDs
-console.log(`🔍 Project ${index}:`, {
-  number: project.number,
-  projectId: project.projectId,
-  id: project.id,
-  title: project.title
-});
-                const cells = [
-                    { content: project.number, class: 'project-number' },
-                    { 
-                        content: project.title, 
-                        link: project.projectUrl, 
-                        class: 'project-link'
-                    },
-                    { content: project.owner },
-{ content: project.customstatus || project.customStatus || 'Unknown', style: `background: ${project.statusColor}; color: white;`, class: 'status-badge', dataProjectId: project.id },
-                    { content: project.startdate || '-' },
-                    { content: project.dueDate || '-' },
-                    { 
-                        content: communicationInfo.text, 
-                        class: `communication-badge ${communicationInfo.class}`,
-                        extraContent: communicationInfo.extraInfo
-                    },
-                    { content: project.daysIdle > 0 ? project.daysIdle + ' days' : 'Active', class: getDaysClass(project.daysIdle) }
-                ];
-
-                cells.forEach(cellData => {
-                    const td = document.createElement('td');
-                    
-                    if (cellData.link) {
-                        const link = document.createElement('a');
-                        link.href = cellData.link;
-                        link.target = '_blank';
-                        link.className = cellData.class || '';
-                        link.textContent = cellData.content;
-                        td.appendChild(link);
-										} else {
-                        const span = document.createElement('span');
-                        if (cellData.class) span.className = cellData.class;
-                        if (cellData.style) span.setAttribute('style', cellData.style);
-                        if (cellData.dataProjectId) span.setAttribute('data-project-id', cellData.dataProjectId);
-                        span.textContent = cellData.content;
-                        td.appendChild(span);
-                        
-                        if (cellData.extraContent) {
-                            const extraDiv = document.createElement('div');
-                            extraDiv.className = 'last-message-info';
-                            extraDiv.innerHTML = cellData.extraContent;
-                            td.appendChild(extraDiv);
-                        }
-                    }
-                    
-                    row.appendChild(td);
-                });
-
-                tbody.appendChild(row);
-                
-                const expansionRow = document.createElement('tr');
-                const expansionCell = document.createElement('td');
-                expansionCell.colSpan = 9;
-                
-                const expansionSection = document.createElement('div');
-                expansionSection.className = 'project-expansion';
-                expansionSection.id = `expansion-${project.projectId}`;
-                
-                expansionCell.appendChild(expansionSection);
-                expansionRow.appendChild(expansionCell);
-                tbody.appendChild(expansionRow);
-            });
-            
-            table.appendChild(tbody);
-            container.appendChild(table);
-            
-            console.log('✅ Projects rendered successfully');
+            th.appendChild(indicator);
         }
+        
+        headerRow.appendChild(th);
+    });
 
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    const tbody = document.createElement('tbody');
+    
+    projects.forEach((project, index) => {
+        const row = document.createElement('tr');
+        
+        const isRush = project.customStatus && project.customStatus.toLowerCase().includes('rush');
+        if (isRush) {
+            row.style.backgroundColor = '#fef3c7';
+        }
+        
+        const expandCell = document.createElement('td');
+        const expandBtn = document.createElement('button');
+        expandBtn.className = 'expand-btn';
+        expandBtn.onclick = () => toggleProject(project.projectId, expandBtn);
+        
+        const arrow = document.createElement('div');
+        arrow.className = 'expand-arrow';
+        expandBtn.appendChild(arrow);
+        expandCell.appendChild(expandBtn);
+        row.appendChild(expandCell);
+        
+        const communicationInfo = getProjectCommunication(project);
+        
+        // FIXED: Use project.id consistently (confirmed via API test)
+        console.log(`🔍 Project ${index}: ID=${project.id}, Number=${project.number}, Title=${project.title}`);
+        
+        const cells = [
+            { content: project.number, class: 'project-number' },
+            { 
+                content: project.title, 
+                link: project.projectUrl, 
+                class: 'project-link'
+            },
+            { content: project.owner },
+            { 
+                content: project.customstatus || project.customStatus || 'Unknown', 
+                style: `background: ${project.statusColor}; color: white;`, 
+                class: 'status-badge', 
+                dataProjectId: project.id // FIXED: Use project.id directly
+            },
+            { content: project.startdate || '-' },
+            { content: project.dueDate || '-' },
+            { 
+                content: communicationInfo.text, 
+                class: `communication-badge ${communicationInfo.class}`,
+                extraContent: communicationInfo.extraInfo
+            },
+            { content: project.daysIdle > 0 ? project.daysIdle + ' days' : 'Active', class: getDaysClass(project.daysIdle) }
+        ];
+
+        cells.forEach(cellData => {
+            const td = document.createElement('td');
+            
+            if (cellData.link) {
+                const link = document.createElement('a');
+                link.href = cellData.link;
+                link.target = '_blank';
+                link.className = cellData.class || '';
+                link.textContent = cellData.content;
+                td.appendChild(link);
+            } else {
+                const span = document.createElement('span');
+                if (cellData.class) span.className = cellData.class;
+                if (cellData.style) span.setAttribute('style', cellData.style);
+                if (cellData.dataProjectId) span.setAttribute('data-project-id', cellData.dataProjectId);
+                span.textContent = cellData.content;
+                td.appendChild(span);
+                
+                if (cellData.extraContent) {
+                    const extraDiv = document.createElement('div');
+                    extraDiv.className = 'last-message-info';
+                    extraDiv.innerHTML = cellData.extraContent;
+                    td.appendChild(extraDiv);
+                }
+            }
+            
+            row.appendChild(td);
+        });
+
+        tbody.appendChild(row);
+        
+        const expansionRow = document.createElement('tr');
+        const expansionCell = document.createElement('td');
+        expansionCell.colSpan = 9;
+        
+        const expansionSection = document.createElement('div');
+        expansionSection.className = 'project-expansion';
+        expansionSection.id = `expansion-${project.projectId}`;
+        
+        expansionCell.appendChild(expansionSection);
+        expansionRow.appendChild(expansionCell);
+        tbody.appendChild(expansionRow);
+    });
+    
+    table.appendChild(tbody);
+    container.appendChild(table);
+    
+    console.log('✅ Projects rendered successfully');
+}
+			
+			
         // Continue with remaining functions in the same pattern...
         // (I'll include the rest of the essential functions)
 

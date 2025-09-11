@@ -1509,7 +1509,7 @@ console.log(`🔍 Project ${index}:`, {
                         class: 'project-link'
                     },
                     { content: project.owner },
-{ content: project.customstatus || project.customStatus || 'Unknown', style: `background: ${project.statusColor}; color: white;`, class: 'status-badge', dataProjectId: project.projectId || project.id },
+{ content: project.customstatus || project.customStatus || 'Unknown', style: `background: ${project.statusColor}; color: white;`, class: 'status-badge', dataProjectId: project.id },
                     { content: project.startdate || '-' },
                     { content: project.dueDate || '-' },
                     { 

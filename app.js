@@ -77,7 +77,7 @@ app.use(session({
 
 // ADD THIS DEBUG LINE
 app.use((req, res, next) => {
-  console.log('? Session middleware - Path:', req.path, 'Session ID:', req.sessionID);
+  console.log('Session middleware - Path:', req.path, 'Session ID:', req.sessionID);
   next();
 });
 
@@ -94,19 +94,19 @@ const ADMIN_USERS = [
     role: 'viewer'
   }
 ];
-console.log('? ADMIN_USERS config:', ADMIN_USERS[0]);
+console.log('ADMIN_USERS config:', ADMIN_USERS[0]);
 
 // Authentication middleware
 function requireAuth(req, res, next) {
-  console.log('? Auth check for:', req.path);
-  console.log('? Session authenticated:', req.session?.authenticated);
-  console.log('? Session data:', req.session);
+  console.log('Auth check for:', req.path);
+  console.log('Session authenticated:', req.session?.authenticated);
+  console.log('Session data:', req.session);
   
   if (req.session && req.session.authenticated) {
-    console.log('? User is authenticated, allowing access');
+    console.log('User is authenticated, allowing access');
     return next();
   } else {
-    console.log('? User not authenticated, redirecting to login');
+    console.log('User not authenticated, redirecting to login');
     return res.status(401).redirect('/login');
   }
 }

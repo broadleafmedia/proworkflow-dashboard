@@ -1023,7 +1023,7 @@
                 </div>
                 <div class="legend-item">
                     <div class="legend-badge stale"></div>
-                    <span>Stale (>7 days)</span>
+                    <span>Stale (&gt;7 days)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-badge none"></div>
@@ -1094,25 +1094,33 @@
 			
 			
 // PHASE 2: Status Update Functionality
-        let statusOptions = null;
-        let statusOptionsCache = null;
 
-        // Load status options with caching
-        async function loadStatusOptions() {
-            if (statusOptionsCache) return statusOptionsCache;
-            
-            try {
-                console.log('🔄 Loading status options from ProWorkflow...');
-                const response = await fetch('/api/rest/status-options');
-                const data = await response.json();
-                statusOptionsCache = data.statuses || [];
-                console.log(`✅ Loaded ${statusOptionsCache.length} status options`);
-                return statusOptionsCache;
-            } catch (error) {
-                console.error('❌ Failed to load status options:', error);
-                return [];
-            }
+let statusOptionsCache = null;
+
+async function loadStatusOptions() {
+    // Return cached if valid
+    if (statusOptionsCache && statusOptionsCache.length > 0) {
+        return statusOptionsCache;
+    }
+
+    try {
+        console.log('🔄 Loading status options...');
+        const response = await fetch('/api/rest/status-options');
+        const data = await response.json();
+
+        if (data.statuses && data.statuses.length > 0) {
+            statusOptionsCache = data.statuses;
+            console.log(`✅ Loaded ${statusOptionsCache.length} status options`);
+            return statusOptionsCache;
+        } else {
+            console.warn('⚠️ No statuses returned from API');
+            return [];
         }
+    } catch (error) {
+        console.error('❌ Failed to load status options:', error);
+        return [];
+    }
+}
 
         // Create ProWorkflow-style dropdown
         function createStatusDropdown(statuses, currentStatusText, onSelect) {
@@ -1181,121 +1189,80 @@ console.log('🔍 Using project ID:', projectId);
             }
         });
 
-// Enhanced updateProjectStatus function with comprehensive debugging
+// Update project status from dashboard
 async function updateProjectStatus(projectId, statusObj, badgeElement) {
-    // 🔍 STEP 1: COMPREHENSIVE DEBUG LOGGING
-    console.log('🚀 === updateProjectStatus DEBUG START ===');
-    console.log('📋 Function called with parameters:', {
-        projectId: projectId,
-        projectIdType: typeof projectId,
-        projectIdValue: JSON.stringify(projectId),
-        isNull: projectId === null,
-        isUndefined: projectId === undefined,
-        isEmpty: projectId === '',
-        statusObj: statusObj,
-        statusObjName: statusObj?.name,
-        statusObjId: statusObj?.id,
-        badgeElement: badgeElement
-    });
+  console.log('WILL UPDATE → project', projectId, 'to status NAME:', statusObj?.name, 'ID:', statusObj?.id);
+	console.log('=== updateProjectStatus START ===');
+    console.log('Project ID:', projectId, 'Status:', statusObj);
 
-    // 🔍 Check the badge element's data attributes
-    console.log('🏷️ Badge element data attributes:', {
-        dataProjectId: badgeElement.getAttribute('data-project-id'),
-        datasetProjectId: badgeElement.dataset.projectId,
-        allDataAttributes: Object.keys(badgeElement.dataset),
-        elementId: badgeElement.id,
-        elementClassName: badgeElement.className
-    });
-
-    // 🔍 Check if we can find the project ID from the DOM hierarchy
-    const tableRow = badgeElement.closest('tr');
-    if (tableRow) {
-        console.log('📊 Table row context:', {
-            rowIndex: tableRow.rowIndex,
-            rowCells: Array.from(tableRow.cells).map((cell, index) => ({
-                index: index,
-                content: cell.textContent.trim().substring(0, 50),
-                hasDataAttributes: Object.keys(cell.dataset).length > 0 ? Object.keys(cell.dataset) : 'none'
-            }))
-        });
-    }
-
-    // 🚨 VALIDATION: Stop if project ID is invalid
-    if (!projectId || projectId === 'null' || projectId === 'undefined' || projectId === null || projectId === undefined) {
-        console.error('❌ CRITICAL ERROR: Invalid project ID detected!');
-        console.error('❌ Cannot proceed with status update');
-        console.error('❌ Project ID value:', projectId, '(type:', typeof projectId, ')');
-        
-        // Show user-friendly error
+    if (!projectId) {
         alert(`Cannot update status: Invalid project ID (${projectId}). Please refresh the page and try again.`);
         return;
     }
 
-    // 🔍 Log the API URL that will be called
     const apiUrl = `/api/rest/project/${projectId}/status`;
-    console.log('🌐 API URL that will be called:', apiUrl);
+    console.log('API URL:', apiUrl);
 
-    console.log(`🔄 Proceeding with update - Project: ${projectId} to status: ${statusObj.name} (ID: ${statusObj.id})`);
-    console.log('📤 Sending data:', { statusId: statusObj.id });
-    
-    // Optimistic update (visual feedback)
+    // Optimistic UI update
     const originalText = badgeElement.textContent;
     const originalColor = badgeElement.style.background;
-    
+
     badgeElement.textContent = statusObj.name;
     badgeElement.style.background = '#' + statusObj.color;
-    console.log('✨ Applied optimistic update to badge');
-    
+
     try {
-        console.log('📡 Making API call...');
         const response = await fetch(apiUrl, {
             method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ statusId: statusObj.id })
         });
-        
-        console.log('📥 Response received:', {
-            status: response.status,
-            statusText: response.statusText,
-            ok: response.ok,
-            url: response.url
-        });
-        
+
         const result = await response.json();
-        console.log('📋 Response data:', result);
-        
-        if (result.success) {
-            console.log('✅ Status updated successfully in ProWorkflow!');
-            // Reload projects to get fresh data
-            setTimeout(() => {
-                console.log('🔄 Reloading projects...');
-                loadProjects();
-            }, 1000);
-        } else {
+        console.log('Response:', result);
+
+if (result.success) {
+    console.log('✅ Status updated successfully');
+
+    // Refresh just this project row
+    setTimeout(async () => {
+        try {
+            const res = await fetch(`/api/rest/project/${projectId}`);
+            const data = await res.json();
+					console.log('🔍 Reloaded project data:', data);
+
+
+            if (data.project) {
+                console.log('🔄 Updated project data:', data.project);
+
+                // Update badge text + color in case backend differs
+                badgeElement.textContent = data.project.customstatus || statusObj.name;
+                if (data.project.customstatuscolor) {
+                    badgeElement.style.background = '#' + data.project.customstatuscolor;
+                }
+            }
+        } catch (err) {
+            console.error('Failed to reload single project', err);
+        }
+    }, 500);
+}
+
+			
+			else {
             throw new Error(result.error || 'Update failed');
         }
-        
     } catch (error) {
         console.error('❌ Error updating status:', error);
-        console.error('❌ Full error object:', {
-            message: error.message,
-            name: error.name,
-            stack: error.stack
-        });
-        
+
         // Rollback optimistic update
         badgeElement.textContent = originalText;
         badgeElement.style.background = originalColor;
-        console.log('↩️ Rolled back optimistic update');
-        
+
         alert('Failed to update status: ' + error.message);
     }
 
-    console.log('🏁 === updateProjectStatus DEBUG END ===');
+    console.log('=== updateProjectStatus END ===');
 }
-			
-			
-			
+		
 			
         // THREADING HELPER FUNCTIONS
         function buildMessageThreads(messages) {
@@ -1582,7 +1549,10 @@ function renderProjects(projects) {
                 content: project.customstatus || project.customStatus || 'Unknown', 
                 style: `background: ${project.statusColor}; color: white;`, 
                 class: 'status-badge', 
-                dataProjectId: project.id // FIXED: Use project.id directly
+
+dataProjectId: project.projectId || project.originalId || project.id || project.number
+							
+							
             },
             { content: project.startdate || '-' },
             { content: project.dueDate || '-' },
@@ -1608,7 +1578,7 @@ function renderProjects(projects) {
                 const span = document.createElement('span');
                 if (cellData.class) span.className = cellData.class;
                 if (cellData.style) span.setAttribute('style', cellData.style);
-                if (cellData.dataProjectId) span.setAttribute('data-project-id', cellData.dataProjectId);
+if (cellData.dataProjectId) span.setAttribute('data-project-id', cellData.dataProjectId);
                 span.textContent = cellData.content;
                 td.appendChild(span);
                 

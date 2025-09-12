@@ -838,24 +838,11 @@ app.get('/api/rest/tasks', async (req, res) => {
 });
 
 
-// Project status update route
 app.put('/api/rest/project/:id/status', async (req, res) => {
   try {
     const projectId = req.params.id;
     const { statusId } = req.body;
-    
-    console.log(`? Updating project ${projectId} to status ID: ${statusId}`);
-    
-    // First, get the current project data
-    const projectResponse = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`);
-    const project = projectResponse.project;
-    
-    if (!project) {
-      throw new Error(`Project ${projectId} not found`);
-    }
-    
-    console.log(`? Current project: ${project.title}`);
-    
+
     // Get the current status name from status options
     const statusOptionsResponse = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
     const statusOptions = statusOptionsResponse.customstatuses || [];
@@ -865,33 +852,23 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
       throw new Error(`Status ID ${statusId} not found in available statuses`);
     }
 
-    console.log(`? Changing status to: ${selectedStatus.name}`);
+    // Debug logs
+    console.log('[DEBUG] Updating project', projectId, 'to status', selectedStatus.name);
+    const updateUrl = `/projects/${projectId}`;
+    console.log('[DEBUG] Update URL:', updateUrl);
 
-    // Build update payload using STATUS NAME (not ID)
-    const updateData = {
-      customstatus: selectedStatus.name,  // ? Use status name
-      title: project.title,
-      description: project.description || '',
-      companyid: project.companyid,
-      managerid: project.managerid,
-      categoryid: project.categoryid || null,
-      duedate: project.duedate || null,
-      startdate: project.startdate || null,
-      budget: project.budget || 0,
-      groupid: project.groupid || null,
-      divisionid: project.divisionid || null
-    };
+    // Call PWF with body payload
+    const result = await ProWorkflowAPI.makeRequest(updateUrl, 'PUT', {
+  customstatusid: selectedStatus.id   // numeric ID
+    });
 
-    console.log('? Sending status NAME payload:', JSON.stringify(updateData, null, 2));
-    
-    // Make the update request to ProWorkflow
-    const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', updateData);
-    
-    console.log('? ProWorkflow update successful:', result);
-    
-    // Clear cache to force refresh
+    // Log PWF response
+    console.log('[DEBUG] PWF response:', JSON.stringify(result));
+
+    // Clear cache and force immediate refresh
     cache.clear();
-    
+    console.log('? Cache cleared, status should update on next load');
+
     res.json({ 
       success: true, 
       message: 'Status updated successfully',
@@ -907,7 +884,7 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
     });
   }
 });
-			
+
 			
 // Get custom status options for Team 9 (Shared Services)
 app.get('/api/rest/status-options', async (req, res) => {
@@ -947,26 +924,38 @@ app.get('/api/rest/projects-table', async (req, res) => {
     const projects = projectsData.projects || projectsData.data || projectsData || [];
     
     console.log(`Found ${projects.length} total projects`);
+
+		
+const projectRequests = projects.map(project => 
+  () => Promise.all([
+    ProWorkflowAPI.makeRequest(`/projects/${project.id}`),
+    ProWorkflowAPI.makeRequest(`/projects/${project.id}/messages`).catch(error => {
+      console.warn(`Failed to get messages for project ${project.id}`);
+      return { messages: [], count: 0 };
+    })
+  ]).then(([details, messages]) => {
+    // FIXED: Preserve the original project ID before spreading details
+    const originalProjectId = project.id;
+    return {
+      ...details.project,
+      id: originalProjectId,        // CRITICAL: Override with original ID
+      originalId: originalProjectId, // Backup reference
+      messageData: messages
+    };
+  })
+  .catch(error => {
+    console.error(`Failed to get details for project ${project.id}`);
+    return { 
+      ...project, 
+      id: project.id,              // CRITICAL: Preserve original ID
+      error: true, 
+      messageData: { messages: [], count: 0 } 
+    };
+  })
+);
     
-    // PERFORMANCE: Create rate-limited requests for project details and messages
-    const projectRequests = projects.map(project => 
-      () => Promise.all([
-        ProWorkflowAPI.makeRequest(`/projects/${project.id}`),
-        ProWorkflowAPI.makeRequest(`/projects/${project.id}/messages`).catch(error => {
-          console.warn(`Failed to get messages for project ${project.id}`);
-          return { messages: [], count: 0 };
-        })
-      ]).then(([details, messages]) => ({ 
-        ...details.project, 
-        originalId: project.id,
-        messageData: messages
-      }))
-      .catch(error => {
-        console.error(`Failed to get details for project ${project.id}`);
-        return { ...project, error: true, messageData: { messages: [], count: 0 } };
-      })
-    );
-    
+		
+		
     console.log(`Starting rate-limited API calls (max 8 concurrent)...`);
     const startTime = Date.now();
     

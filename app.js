@@ -75,7 +75,7 @@ app.use(session({
   name: 'pwf_session'
 }));
 
-// ADD THIS DEBUG LINE
+// Debug middleware
 app.use((req, res, next) => {
   console.log('Session middleware - Path:', req.path, 'Session ID:', req.sessionID);
   next();
@@ -117,127 +117,18 @@ app.use(express.urlencoded({ extended: false }));
 
 // APPLY AUTHENTICATION TO ALL ROUTES EXCEPT LOGIN
 app.use((req, res, next) => {
-  // Skip auth for login page and auth endpoints
   if (req.path === '/login' || req.path.startsWith('/auth/') || req.path === '/health') {
     return next();
   }
-  
-  // Apply authentication to everything else
   return requireAuth(req, res, next);
 });
 
-// =================================================================================
-// BUSINESS DAY CALCULATOR - Add this section to your app.js
-// Place this AFTER the existing helper functions (around line 100, before routes)
-// =================================================================================
-
-/**
- * Calculate business days between two dates (excludes weekends)
- * @param {Date} startDate - Starting date
- * @param {Date} endDate - Ending date (default: today)
- * @returns {number} Number of business days
- */
-function getBusinessDaysDifference(startDate, endDate = new Date()) {
-  if (!startDate || isNaN(startDate.getTime())) {
-    return 0;
-  }
-  
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  
-  // Ensure we're working with dates at midnight
-  start.setHours(0, 0, 0, 0);
-  end.setHours(0, 0, 0, 0);
-  
-  let businessDays = 0;
-  const currentDate = new Date(start);
-  
-  while (currentDate < end) {
-    const dayOfWeek = currentDate.getDay();
-    
-    // Only count weekdays (Monday=1 through Friday=5)
-    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-      businessDays++;
-    }
-    
-    currentDate.setDate(currentDate.getDate() + 1);
-  }
-  
-  return businessDays;
-}
-
-/**
- * Get communication health status using business days
- * @param {Date} lastMessageDate - Date of last message
- * @param {boolean} isRushProject - Whether this is a RUSH project
- * @returns {Object} Health status info
- */
-function getCommunicationHealthBusiness(lastMessageDate, isRushProject = false) {
-  if (!lastMessageDate) {
-    return {
-      status: 'unknown',
-      businessDays: 0,
-      className: 'communication-unknown',
-      description: 'No communication data'
-    };
-  }
-  
-  const businessDays = getBusinessDaysDifference(lastMessageDate);
-  
-  // Different thresholds for RUSH vs normal projects
-  const thresholds = isRushProject ? 
-    { active: 1, attention: 2, stale: 3 } :     // RUSH: 1-2-3 business days
-    { active: 3, attention: 4, stale: 5 };      // Normal: 3-4-5 business days
-  
-  let status, className, description;
-  
-  if (businessDays <= thresholds.active) {
-    status = 'active';
-    className = 'communication-active';
-    description = `Active (${businessDays} business days)`;
-  } else if (businessDays <= thresholds.attention) {
-    status = 'attention';
-    className = 'communication-attention';
-    description = `Needs attention (${businessDays} business days)`;
-  } else {
-    status = 'stale';
-    className = 'communication-stale';
-    description = `Stale (${businessDays} business days)`;
-  }
-  
-  return {
-    status,
-    businessDays,
-    className,
-    description,
-    isRushProject
-  };
-}
-
-// Test endpoint to verify the calculator works
-app.get('/api/test/business-days', (req, res) => {
-  const testDate = new Date();
-  testDate.setDate(testDate.getDate() - 5); // 5 days ago
-  
-  const result = getCommunicationHealthBusiness(testDate, false);
-  const rushResult = getCommunicationHealthBusiness(testDate, true);
-  
-  res.json({
-    message: 'Business day calculator test',
-    testDate: testDate.toISOString(),
-    normalProject: result,
-    rushProject: rushResult,
-    timestamp: new Date().toISOString()
-  });
-});
 
 // =================================================================================
 // END OF BUSINESS DAY CALCULATOR ADDITION
-// =================================================================================	
+// =================================================================================
 
-
-	
-	// =================================================================================
+// =================================================================================
 // ASSIGNMENT QUEUE MONITORING - Add this section to your app.js
 // Place this AFTER the business day calculator (around line 150, before routes)
 // =================================================================================
@@ -381,12 +272,12 @@ app.get('/api/test/assignment-queue', (req, res) => {
   });
 });
 
+		
+		
 // =================================================================================
 // END OF ASSIGNMENT QUEUE MONITORING ADDITION
 // =================================================================================
-	
-	
-	
+
 // SECURITY ROUTES
 app.get('/login', (req, res) => {
   res.send(`
@@ -469,7 +360,7 @@ app.get('/login', (req, res) => {
     </head>
     <body>
       <form class="login-form" method="POST" action="/auth/login">
-        <h1>? ProWorkflow Dashboard</h1>
+        <h1>ProWorkflow Dashboard</h1>
         ${req.query.error ? '<div class="error">Invalid credentials</div>' : ''}
         
         <div class="demo-info">
@@ -618,19 +509,18 @@ function getTaskContextMessages(projectMessages, task) {
   const taskTitle = (task.name || '').toLowerCase();
   const taskAssignees = (task.contacts || []).map(c => c.name?.toLowerCase()).filter(Boolean);
   
-  console.log(`? Filtering messages for task "${task.name}"`);
-  console.log(`   Task assignees: [${taskAssignees.join(', ')}]`);
-  console.log(`   Task period: ${taskStart?.toDateString()} ? ${taskEnd?.toDateString()}`);
+  console.log(`Filtering messages for task "${task.name}"`);
+  console.log(`Task assignees: [${taskAssignees.join(', ')}]`);
+  console.log(`Task period: ${taskStart?.toDateString()} to ${taskEnd?.toDateString()}`);
   
-  // Extract meaningful keywords from task title (ignore common words)
-  const commonWords = ['the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'may', 'might', 'can', 'must', 'shall', 'design', 'task', 'project', 'update', 'create', 'add', 'remove', 'edit', 'review'];
+  const commonWords = ['the','and','or','but','in','on','at','to','for','of','with','by','a','an','is','are','was','were','be','been','have','has','had','do','does','did','will','would','could','should','may','might','can','must','shall','design','task','project','update','create','add','remove','edit','review'];
   const taskKeywords = taskTitle
     .split(/[\s\-_,()[\]{}|\\/:;"'<>?=+*&^%$#@!~`]+/)
     .map(word => word.toLowerCase().trim())
     .filter(word => word.length > 2 && !commonWords.includes(word))
-    .slice(0, 5); // Take top 5 keywords to avoid over-matching
+    .slice(0, 5);
   
-  console.log(`   Task keywords: [${taskKeywords.join(', ')}]`);
+  console.log(`Task keywords: [${taskKeywords.join(', ')}]`);
   
   const relevantMessages = projectMessages.filter(message => {
     const messageDate = new Date(message.date);
@@ -640,23 +530,16 @@ function getTaskContextMessages(projectMessages, task) {
     let relevanceScore = 0;
     let relevanceReasons = [];
     
-    // 1. Date relevance (if we have task dates)
     let withinTimeframe = true;
     if (taskStart && messageDate < taskStart) {
       const daysBefore = Math.floor((taskStart - messageDate) / (1000 * 60 * 60 * 24));
-      if (daysBefore > 7) { // Only include messages up to 7 days before task start
-        withinTimeframe = false;
-      }
+      if (daysBefore > 7) withinTimeframe = false;
     }
     if (task.completedate && messageDate > taskEnd) {
       withinTimeframe = false;
     }
+    if (!withinTimeframe) return false;
     
-    if (!withinTimeframe) {
-      return false; // Hard filter on date range
-    }
-    
-    // 2. Assignee mentions (high relevance)
     for (const assignee of taskAssignees) {
       if (messageContent.includes(assignee) || messageAuthor.includes(assignee)) {
         relevanceScore += 10;
@@ -665,7 +548,6 @@ function getTaskContextMessages(projectMessages, task) {
       }
     }
     
-    // 3. @mentions (very high relevance)
     if (messageContent.includes('@')) {
       for (const assignee of taskAssignees) {
         const firstName = assignee.split(' ')[0];
@@ -677,7 +559,6 @@ function getTaskContextMessages(projectMessages, task) {
       }
     }
     
-    // 4. Task keyword relevance (medium relevance)
     let keywordMatches = 0;
     for (const keyword of taskKeywords) {
       if (messageContent.includes(keyword)) {
@@ -689,13 +570,11 @@ function getTaskContextMessages(projectMessages, task) {
       relevanceReasons.push(`${keywordMatches} keyword matches`);
     }
     
-    // 5. Author is task assignee (high relevance)
     if (taskAssignees.some(assignee => messageAuthor.includes(assignee))) {
       relevanceScore += 8;
       relevanceReasons.push('author is assignee');
     }
     
-    // 6. File attachments related to task (medium relevance)
     if (message.files && message.files.length > 0) {
       const fileNames = message.files.map(f => (f.name || '').toLowerCase()).join(' ');
       for (const keyword of taskKeywords) {
@@ -707,26 +586,200 @@ function getTaskContextMessages(projectMessages, task) {
       }
     }
     
-    // 7. Message is a response/follow-up (check for "re:" or question marks)
     if (messageContent.includes('re:') || messageContent.includes('?') || messageContent.includes('please')) {
       relevanceScore += 2;
       relevanceReasons.push('appears to be response/question');
     }
     
-    // Relevance threshold: require at least score of 5 to be considered relevant
     const isRelevant = relevanceScore >= 5;
-    
     if (isRelevant) {
-      console.log(`   ? Relevant message (score: ${relevanceScore}): "${message.content.substring(0, 50)}..." - ${relevanceReasons.join(', ')}`);
+      console.log(`Relevant message (score: ${relevanceScore}): "${message.content.substring(0, 50)}..." - ${relevanceReasons.join(', ')}`);
     }
-    
     return isRelevant;
   });
   
-  console.log(`   ? Found ${relevantMessages.length} relevant messages out of ${projectMessages.length} total project messages`);
+  console.log(`Found ${relevantMessages.length} relevant messages out of ${projectMessages.length} total project messages`);
   
   return relevantMessages;
 }
+
+
+
+
+// =================================================================================
+// BUSINESS DAY CALCULATOR HELPERS
+// =================================================================================
+
+/**
+ * Calculate business days between two dates (excludes weekends).
+ * @param {Date} startDate - Starting date
+ * @param {Date} endDate - Ending date (default: today)
+ * @returns {number} Number of business days
+ */
+function getBusinessDaysDifference(startDate, endDate = new Date()) {
+  if (!startDate || isNaN(startDate.getTime())) {
+    return 0;
+  }
+  
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Normalize to midnight
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  
+  let businessDays = 0;
+  const currentDate = new Date(start);
+  
+  while (currentDate < end) {
+    const dayOfWeek = currentDate.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      businessDays++;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return businessDays;
+}
+
+/**
+ * Get communication health status using business days.
+ * @param {Date} lastMessageDate - Date of last message
+ * @param {boolean} isRushProject - Whether this is a rush project
+ * @returns {Object} Health status info
+ */
+function getCommunicationHealthBusiness(lastMessageDate, isRushProject = false) {
+  if (!lastMessageDate) {
+    return {
+      status: 'unknown',
+      businessDays: 0,
+      className: 'communication-unknown',
+      description: 'No communication data'
+    };
+  }
+  
+  const businessDays = getBusinessDaysDifference(lastMessageDate);
+  
+  const thresholds = isRushProject
+    ? { active: 1, attention: 2, stale: 3 }   // RUSH projects
+    : { active: 3, attention: 4, stale: 5 };  // Normal projects
+  
+  let status, className, description;
+  
+  if (businessDays <= thresholds.active) {
+    status = 'active';
+    className = 'communication-active';
+    description = `Active (${businessDays} business days)`;
+  } else if (businessDays <= thresholds.attention) {
+    status = 'attention';
+    className = 'communication-attention';
+    description = `Needs attention (${businessDays} business days)`;
+  } else {
+    status = 'stale';
+    className = 'communication-stale';
+    description = `Stale (${businessDays} business days)`;
+  }
+  
+  return {
+    status,
+    businessDays,
+    className,
+    description,
+    isRushProject
+  };
+}
+
+/**
+ * Check if a project in Queue status is overdue for assignment.
+ * @param {Object} project - Project object with status and dates
+ * @returns {Object} Assignment status info
+ */
+function getAssignmentQueueStatus(project) {
+  const customStatus = (project.customstatus || '').toLowerCase();
+  const isRushProject = customStatus.includes('rush');
+  
+  const isInQueue = customStatus === 'queue' || customStatus === 'rush - queue';
+  if (!isInQueue) {
+    return {
+      isInQueue: false,
+      isOverdue: false,
+      status: 'not_in_queue',
+      description: null
+    };
+  }
+  
+  const queueEntryDate = project.startdate ? new Date(project.startdate) : null;
+  if (!queueEntryDate) {
+    return {
+      isInQueue: true,
+      isOverdue: false,
+      status: 'unknown_entry_time',
+      description: 'Queue entry time unknown'
+    };
+  }
+  
+  const businessDaysSinceQueued = getBusinessDaysDifference(queueEntryDate);
+  const assignmentThreshold = isRushProject ? 0 : 1; // RUSH same-day, normal next-day
+  const isOverdue = businessDaysSinceQueued > assignmentThreshold;
+  
+  return {
+    isInQueue: true,
+    isOverdue,
+    businessDays: businessDaysSinceQueued,
+    status: isOverdue ? 'assignment_overdue' : 'in_queue',
+    description: isOverdue
+      ? `Assignment overdue (${businessDaysSinceQueued} business days in queue)`
+      : `In queue (${businessDaysSinceQueued} business days)`,
+    rushProject: isRushProject,
+    threshold: assignmentThreshold
+  };
+}
+
+/**
+ * Get enhanced project status with assignment monitoring.
+ * @param {Object} project - Project object
+ * @returns {Object} Enhanced status info
+ */
+function getEnhancedProjectStatus(project) {
+  const customStatus = (project.customstatus || '').toLowerCase();
+  const assignmentStatus = getAssignmentQueueStatus(project);
+  
+  let needsAttentionReason = null;
+  
+  if (customStatus === 'needs attention') {
+    const lastUpdated = project.lastmodifiedutc ? new Date(project.lastmodifiedutc) : null;
+    if (lastUpdated) {
+      const daysSinceUpdate = getBusinessDaysDifference(lastUpdated);
+      if (daysSinceUpdate > 1) {
+        needsAttentionReason = `No progress in ${daysSinceUpdate} business days`;
+      }
+    }
+  }
+  
+  if (customStatus === 'meeting scheduled') {
+    const lastUpdated = project.lastmodifiedutc ? new Date(project.lastmodifiedutc) : null;
+    if (lastUpdated) {
+      const daysSinceUpdate = getBusinessDaysDifference(lastUpdated);
+      if (daysSinceUpdate > 5) {
+        needsAttentionReason = `Meeting may have occurred - status update needed (${daysSinceUpdate} days)`;
+      }
+    }
+  }
+  
+  return {
+    assignmentStatus,
+    needsAttentionReason,
+    statusFlags: {
+      assignmentOverdue: assignmentStatus.isOverdue,
+      needsStatusUpdate: needsAttentionReason !== null,
+      isRush: customStatus.includes('rush')
+    }
+  };
+}
+
+
+
+
 
 // Shared API Functions
 class ProWorkflowAPI {
@@ -740,65 +793,82 @@ class ProWorkflowAPI {
           return cached;
         }
       }
+
       const config = {
         method,
         url: `${PROWORKFLOW_CONFIG.baseURL}${endpoint}`,
         headers: getAuthHeaders()
       };
-      
+
       if (data) {
         config.data = data;
       }
-      
+
       const response = await axios(config);
-      
+
       // Cache successful GET responses
       if (method === 'GET') {
         setCachedData(getCacheKey(endpoint), response.data);
       }
-      
+
       return response.data;
     } catch (error) {
       console.error(`API Error: ${error.response?.status} ${error.response?.statusText}`);
       throw error;
     }
   }
-  // Dashboard methods
+
+  // Projects
   static async getProjects() {
     return await this.makeRequest('/projects');
   }
+
   static async getProject(projectId) {
     return await this.makeRequest(`/projects/${projectId}`);
   }
+
+  // Tasks
   static async getTasks() {
     return await this.makeRequest('/tasks');
   }
+
   static async getProjectTasks(projectId) {
     return await this.makeRequest(`/projects/${projectId}/tasks`);
   }
+
+  // Companies
   static async getCompanies() {
     return await this.makeRequest('/companies');
   }
-  // Message methods
+
+  // Messages
   static async getProjectMessages(projectId) {
     return await this.makeRequest(`/projects/${projectId}/messages`);
   }
+
   static async getTaskMessages(taskId) {
     return await this.makeRequest(`/tasks/${taskId}/messages`);
   }
-  // Assignment Queue methods
+
+  // Project Requests
   static async getProjectRequests() {
     return await this.makeRequest('/projectrequests');
   }
+
   static async getProjectRequest(requestId) {
     return await this.makeRequest(`/projectrequests/${requestId}`);
   }
+
   static async approveProjectRequest(requestId, assigneeData) {
     return await this.makeRequest(`/projectrequests/${requestId}/approve`, 'PUT', assigneeData);
   }
 }
 
+			
+	// =================================================================================
 // MAIN ROUTES - Serve HTML Pages
+// =================================================================================
+
 // Dashboard (main page)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -837,7 +907,7 @@ app.get('/api/rest/tasks', async (req, res) => {
   }
 });
 
-
+// Update project status
 app.put('/api/rest/project/:id/status', async (req, res) => {
   try {
     const projectId = req.params.id;
@@ -859,7 +929,7 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
 
     // Call PWF with body payload
     const result = await ProWorkflowAPI.makeRequest(updateUrl, 'PUT', {
-  customstatusid: selectedStatus.id   // numeric ID
+      customstatusid: selectedStatus.id   // numeric ID
     });
 
     // Log PWF response
@@ -867,7 +937,7 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
 
     // Clear cache and force immediate refresh
     cache.clear();
-    console.log('? Cache cleared, status should update on next load');
+    console.log('Cache cleared, status should update on next load');
 
     res.json({ 
       success: true, 
@@ -875,8 +945,8 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
       result: result 
     });
   } catch (error) {
-    console.error('? Status update error:', error);
-    console.error('? Error details:', error.response?.data);
+    console.error('Status update error:', error);
+    console.error('Error details:', error.response?.data);
     res.status(500).json({ 
       success: false, 
       error: 'Failed to update project status',
@@ -885,11 +955,86 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
   }
 });
 
-			
+// Update task (general update, not complete/reactivate)
+app.put('/api/rest/task/:id', async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    let updateData = { ...req.body };
+
+    // Normalize frontend payload to what PWF expects
+    if (updateData.statusid && !updateData.status) {
+      updateData.status = updateData.statusid;  // remap numeric code
+      delete updateData.statusid;
+    }
+
+    console.log(`[DEBUG] Normalized task update ${taskId}:`, updateData);
+
+    const result = await ProWorkflowAPI.makeRequest(`/tasks/${taskId}`, 'PUT', updateData);
+
+    console.log(`[DEBUG] ProWorkflow response for task ${taskId}:`, JSON.stringify(result, null, 2));
+
+    // Clear cache
+    cache.clear();
+
+    res.json({ 
+      success: true,
+      message: 'Task updated successfully',
+      result
+    });
+  } catch (error) {
+    console.error('Task update error:', error);
+    res.status(500).json({ 
+      success: false,
+      error: 'Failed to update task',
+      details: error.response?.data || error.message
+    });
+  }
+});
+
+// Complete a task
+app.put('/api/rest/task/:id/complete', async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const payload = req.body.completedate
+      ? { completedate: req.body.completedate }
+      : {}; // let PWF use "now"
+
+    const result = await ProWorkflowAPI.makeRequest(`/tasks/${taskId}/complete`, 'PUT', payload);
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('Complete task error:', err.response?.data || err.message);
+    res.status(500).json({ success: false, error: err.response?.data || err.message });
+  }
+});
+
+// Reactivate a task
+app.put('/api/rest/task/:id/reactivate', async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const result = await ProWorkflowAPI.makeRequest(`/tasks/${taskId}/reactivate`, 'PUT');
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('Reactivate task error:', err.response?.data || err.message);
+    res.status(500).json({ success: false, error: err.response?.data || err.message });
+  }
+});
+
+// Get task details
+app.get('/api/rest/task/:id', async (req, res) => {
+  try {
+    const taskId = req.params.id;
+    const taskData = await ProWorkflowAPI.makeRequest(`/tasks/${taskId}`);
+    res.json(taskData);
+  } catch (error) {
+    console.error(`Error fetching task ${req.params.id}:`, error);
+    res.status(500).json({ error: 'Failed to fetch task details' });
+  }
+});
+
 // Get custom status options for Team 9 (Shared Services)
 app.get('/api/rest/status-options', async (req, res) => {
   try {
-    console.log('=== FETCHING CUSTOM STATUS OPTIONS ===');
+    console.log('Fetching custom status options...');
     
     const statusData = await ProWorkflowAPI.makeRequest('/settings/projects/customstatuses?teamid=9');
     
@@ -913,6 +1058,8 @@ app.get('/api/rest/status-options', async (req, res) => {
     });
   }
 });
+	
+	
 // PERFORMANCE OPTIMIZED: projects-table route with team filtering and messages
 app.get('/api/rest/projects-table', async (req, res) => {
   const { manager, sort } = req.query;
@@ -925,47 +1072,40 @@ app.get('/api/rest/projects-table', async (req, res) => {
     
     console.log(`Found ${projects.length} total projects`);
 
-		
-const projectRequests = projects.map(project => 
-  () => Promise.all([
-    ProWorkflowAPI.makeRequest(`/projects/${project.id}`),
-    ProWorkflowAPI.makeRequest(`/projects/${project.id}/messages`).catch(error => {
-      console.warn(`Failed to get messages for project ${project.id}`);
-      return { messages: [], count: 0 };
-    })
-  ]).then(([details, messages]) => {
-    // FIXED: Preserve the original project ID before spreading details
-    const originalProjectId = project.id;
-    return {
-      ...details.project,
-      id: originalProjectId,        // CRITICAL: Override with original ID
-      originalId: originalProjectId, // Backup reference
-      messageData: messages
-    };
-  })
-  .catch(error => {
-    console.error(`Failed to get details for project ${project.id}`);
-    return { 
-      ...project, 
-      id: project.id,              // CRITICAL: Preserve original ID
-      error: true, 
-      messageData: { messages: [], count: 0 } 
-    };
-  })
-);
-    
-		
-		
-    console.log(`Starting rate-limited API calls (max 8 concurrent)...`);
+    const projectRequests = projects.map(project => 
+      () => Promise.all([
+        ProWorkflowAPI.makeRequest(`/projects/${project.id}`),
+        ProWorkflowAPI.makeRequest(`/projects/${project.id}/messages`).catch(error => {
+          console.warn(`Failed to get messages for project ${project.id}`);
+          return { messages: [], count: 0 };
+        })
+      ]).then(([details, messages]) => {
+        const originalProjectId = project.id;
+        return {
+          ...details.project,
+          id: originalProjectId,        // CRITICAL: Override with original ID
+          originalId: originalProjectId, // Backup reference
+          messageData: messages
+        };
+      })
+      .catch(error => {
+        console.error(`Failed to get details for project ${project.id}`);
+        return { 
+          ...project, 
+          id: project.id,
+          error: true, 
+          messageData: { messages: [], count: 0 } 
+        };
+      })
+    );
+
+    console.log('Starting rate-limited API calls (max 8 concurrent)...');
     const startTime = Date.now();
-    
-    // PERFORMANCE: Process in batches with rate limiting
     const detailedProjects = await rateLimitedRequest(projectRequests, 8);
-    
     const loadTime = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`Completed ${detailedProjects.length} API calls in ${loadTime}s`);
     
-    // Filter by YOUR team members as managers
+    // Filter by your team members as managers
     const YOUR_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801]; 
     
     let tableProjects = detailedProjects
@@ -975,7 +1115,6 @@ const projectRequests = projects.map(project =>
         if (manager && isTeamProject) {
           return project.managerid == manager || project.managername.toLowerCase().includes(manager.toLowerCase());
         }
-        
         return isTeamProject;
       })
       .map(project => {
@@ -989,7 +1128,6 @@ const projectRequests = projects.map(project =>
         const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
         const isUpcoming = daysUntilDue !== null && daysUntilDue <= 30 && daysUntilDue >= 0;
         
-        // Process message data for communication insights
         const messages = project.messageData?.messages || [];
         const messageCount = messages.length;
         
@@ -1005,77 +1143,58 @@ const projectRequests = projects.map(project =>
           
           lastMessageDate = new Date(lastMessage.date);
           lastMessageAuthor = lastMessage.authorname;
-          lastMessageType = lastMessage.authortype; // 'staff' or 'client'
+          lastMessageType = lastMessage.authortype;
           daysSinceLastMessage = Math.floor((new Date() - lastMessageDate) / (1000 * 60 * 60 * 24));
           
-        // Enhanced communication health using business days
-        if (messages.length > 0) {
-          const sortedMessages = messages.sort((a, b) => new Date(b.date) - new Date(a.date));
-          const lastMessage = sortedMessages[0];
-          
-          lastMessageDate = new Date(lastMessage.date);
-          lastMessageAuthor = lastMessage.authorname;
-          lastMessageType = lastMessage.authortype; // 'staff' or 'client'
-          
-          // Check if this is a RUSH project
           const isRushProject = (project.customstatus || '').toLowerCase().includes('rush');
-          
-          // Use our new business day calculator
           const healthResult = getCommunicationHealthBusiness(lastMessageDate, isRushProject);
           
           communicationHealth = healthResult.status;
           daysSinceLastMessage = healthResult.businessDays;
           
-          console.log(`📊 Project ${project.number}: ${healthResult.description} ${isRushProject ? '(RUSH)' : ''}`);
+          console.log(`Project ${project.number}: ${healthResult.description} ${isRushProject ? '(RUSH)' : ''}`);
         }
 
-        }
-        
-// Get assignment queue status and enhanced status analysis
-const enhancedStatus = getEnhancedProjectStatus(project);
+        const enhancedStatus = getEnhancedProjectStatus(project);
 
-return {
-  number: project.number,
-  title: project.title,
-  projectId: project.id,
-  projectUrl: `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobdetails&Jobs_currentJobID=${project.id}`,
-  owner: project.managername || 'Unassigned',
-  managerId: project.managerid,
-  customStatus: project.customstatus || project.status || 'Active',
-  statusColor: project.customstatuscolor ? `#${project.customstatuscolor}` : '#4CAF50',
-  daysIdle: daysSinceActivity > 7 ? daysSinceActivity : 0,
-  daysSinceStart: daysSinceStart,
-  dueDate: dueDate ? dueDate.toLocaleDateString() : null,
-  daysUntilDue: daysUntilDue,
-  isOverdue: isOverdue,
-  isUpcoming: isUpcoming,
-  client: project.companyname || 'Unknown Client',
-  priority: project.priority || 'Medium',
-  startDate: startDate ? new Date(startDate).toLocaleDateString() : 'No start date',
-  status: project.status || 'active',
-  
-  // Message/Communication data
-  messageCount: messageCount,
-  lastMessageDate: lastMessageDate,
-  lastMessageAuthor: lastMessageAuthor,
-  lastMessageType: lastMessageType,
-  daysSinceLastMessage: daysSinceLastMessage,
-  communicationHealth: communicationHealth,
-  messages: messages, // Include all messages for detailed view
-  
-  // NEW ASSIGNMENT STATUS FIELDS:
-  assignmentStatus: enhancedStatus.assignmentStatus,
-  needsAttentionReason: enhancedStatus.needsAttentionReason,
-  statusFlags: enhancedStatus.statusFlags,
-  
-  // Enhanced display flags
-  isAssignmentOverdue: enhancedStatus.statusFlags.assignmentOverdue,
-  needsStatusUpdate: enhancedStatus.statusFlags.needsStatusUpdate,
-  isRush: enhancedStatus.statusFlags.isRush
-};
+        return {
+          number: project.number,
+          title: project.title,
+          projectId: project.id,
+          projectUrl: `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobdetails&Jobs_currentJobID=${project.id}`,
+          owner: project.managername || 'Unassigned',
+          managerId: project.managerid,
+          customStatus: project.customstatus || project.status || 'Active',
+          statusColor: project.customstatuscolor ? `#${project.customstatuscolor}` : '#4CAF50',
+          daysIdle: daysSinceActivity > 7 ? daysSinceActivity : 0,
+          daysSinceStart: daysSinceStart,
+          dueDate: dueDate ? dueDate.toLocaleDateString() : null,
+          daysUntilDue: daysUntilDue,
+          isOverdue: isOverdue,
+          isUpcoming: isUpcoming,
+          client: project.companyname || 'Unknown Client',
+          priority: project.priority || 'Medium',
+          startDate: startDate ? new Date(startDate).toLocaleDateString() : 'No start date',
+          status: project.status || 'active',
+          
+          messageCount: messageCount,
+          lastMessageDate: lastMessageDate,
+          lastMessageAuthor: lastMessageAuthor,
+          lastMessageType: lastMessageType,
+          daysSinceLastMessage: daysSinceLastMessage,
+          communicationHealth: communicationHealth,
+          messages: messages,
+          
+          assignmentStatus: enhancedStatus.assignmentStatus,
+          needsAttentionReason: enhancedStatus.needsAttentionReason,
+          statusFlags: enhancedStatus.statusFlags,
+          
+          isAssignmentOverdue: enhancedStatus.statusFlags.assignmentOverdue,
+          needsStatusUpdate: enhancedStatus.statusFlags.needsStatusUpdate,
+          isRush: enhancedStatus.statusFlags.isRush
+        };
       });
 		
-    // Apply sorting
     switch (sort) {
       case 'idle':
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
@@ -1105,7 +1224,7 @@ return {
       default:
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
     }
-    // Get unique managers for filtering options
+
     const uniqueManagersMap = new Map();
     detailedProjects
       .filter(p => YOUR_TEAM_MANAGER_IDS.includes(p.managerid))
@@ -1117,6 +1236,7 @@ return {
     
     const availableManagers = Array.from(uniqueManagersMap.values());
     console.log(`Returning ${tableProjects.length} team projects with message data`);
+
     res.json({ 
       projects: tableProjects,
       availableManagers: availableManagers,
@@ -1129,7 +1249,7 @@ return {
     res.status(500).json({ error: 'Failed to fetch REST table data' });
   }
 });
-
+	
 // ENHANCED: Project tasks with smart task-relevant message integration
 app.get('/api/rest/project/:id/tasks', async (req, res) => {
   try {
@@ -1187,7 +1307,7 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
         }
         const isCompleted = taskInfo.status === 'complete';
         
-        // ENHANCED: Smart task-relevant message filtering
+        // Smart task-relevant message filtering
         let allTaskMessages = directTaskMessages;
         let messageSource = 'task';
         
@@ -1202,7 +1322,7 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
           console.log(`Task ${task.id}: No relevant messages found`);
         }
         
-        // Calculate communication health based on all messages
+        // Calculate communication health
         let lastTaskMessageDate = null;
         let daysSinceLastTaskMessage = null;
         let taskCommunicationHealth = 'none';
@@ -1241,7 +1361,6 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
           timeAllocated: taskInfo.timeallocated || 0,
           timeTracked: taskInfo.timetracked || 0,
           
-          // ENHANCED: Smart task-relevant message data
           taskMessages: allTaskMessages,
           taskMessageCount: allTaskMessages.length,
           lastTaskMessageDate: lastTaskMessageDate,
@@ -1286,12 +1405,12 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
     const tasksWithDirectMessages = tasksWithAssignments.filter(t => t.messageSource === 'task');
     const tasksWithSmartContextMessages = tasksWithAssignments.filter(t => t.messageSource === 'project-context');
     
-    console.log(`? SMART TASK-RELEVANT MESSAGE RESULTS:`);
-    console.log(`   ? ${tasksWithAssignments.length} tasks processed`);
-    console.log(`   ? ${tasksWithMessages.length} tasks with relevant messages`);
-    console.log(`   ? ${tasksWithDirectMessages.length} tasks with direct messages`);
-    console.log(`   ? ${tasksWithSmartContextMessages.length} tasks with smart context messages`);
-    console.log(`   ? ${projectMessages.length} total project messages analyzed`);
+    console.log('SMART TASK-RELEVANT MESSAGE RESULTS:');
+    console.log(`   ${tasksWithAssignments.length} tasks processed`);
+    console.log(`   ${tasksWithMessages.length} tasks with relevant messages`);
+    console.log(`   ${tasksWithDirectMessages.length} tasks with direct messages`);
+    console.log(`   ${tasksWithSmartContextMessages.length} tasks with smart context messages`);
+    console.log(`   ${projectMessages.length} total project messages analyzed`);
     
     res.json({
       tasks: tasksWithAssignments,
@@ -1322,14 +1441,12 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
 });
 
 // Message-related API endpoints
-// Get project messages
 app.get('/api/rest/project/:id/messages', async (req, res) => {
   try {
     const projectId = req.params.id;
     console.log(`=== FETCHING MESSAGES FOR PROJECT ${projectId} ===`);
     
     const messagesData = await ProWorkflowAPI.getProjectMessages(projectId);
-    
     console.log(`Found ${messagesData.count || 0} messages for project ${projectId}`);
     
     res.json(messagesData);
@@ -1343,14 +1460,12 @@ app.get('/api/rest/project/:id/messages', async (req, res) => {
   }
 });
 
-// Get task messages
 app.get('/api/rest/task/:id/messages', async (req, res) => {
   try {
     const taskId = req.params.id;
     console.log(`=== FETCHING MESSAGES FOR TASK ${taskId} ===`);
     
     const messagesData = await ProWorkflowAPI.getTaskMessages(taskId);
-    
     console.log(`Found ${messagesData.count || 0} messages for task ${taskId}`);
     
     res.json(messagesData);
@@ -1364,9 +1479,7 @@ app.get('/api/rest/task/:id/messages', async (req, res) => {
   }
 });
 
-
 // ASSIGNMENT QUEUE API ROUTES
-// Get all project requests (Creative Services only)
 app.get('/api/rest/project-requests', async (req, res) => {
   try {
     console.log('=== FETCHING PROJECT REQUESTS ===');
@@ -1374,7 +1487,6 @@ app.get('/api/rest/project-requests', async (req, res) => {
     
     console.log(`Found ${requestsData.count || 0} total project requests`);
     
-    // Filter to Creative Services only
     if (requestsData.projectrequests) {
       requestsData.projectrequests = requestsData.projectrequests.filter(request => 
         request.recipientgroupname === 'Creative Services'
@@ -1382,7 +1494,6 @@ app.get('/api/rest/project-requests', async (req, res) => {
       
       console.log(`Filtered to ${requestsData.projectrequests.length} Creative Services requests`);
       
-      // Sort by urgency (overdue first, then by due date)
       requestsData.projectrequests.sort((a, b) => {
         const aDate = a.duedate ? new Date(a.duedate) : null;
         const bDate = b.duedate ? new Date(b.duedate) : null;
@@ -1404,14 +1515,12 @@ app.get('/api/rest/project-requests', async (req, res) => {
   }
 });
 
-// Get specific project request details
 app.get('/api/rest/project-requests/:id', async (req, res) => {
   try {
     const requestId = req.params.id;
     console.log(`=== FETCHING PROJECT REQUEST ${requestId} ===`);
     
     const requestData = await ProWorkflowAPI.getProjectRequest(requestId);
-    
     console.log(`Loaded project request: ${requestData.projectrequest?.title || 'Unknown'}`);
     
     res.json(requestData);
@@ -1421,7 +1530,6 @@ app.get('/api/rest/project-requests/:id', async (req, res) => {
   }
 });
 
-// Approve/assign a project request
 app.put('/api/rest/project-requests/:id/approve', async (req, res) => {
   try {
     const requestId = req.params.id;
@@ -1431,10 +1539,8 @@ app.put('/api/rest/project-requests/:id/approve', async (req, res) => {
     console.log('Assignment data:', assignmentData);
     
     const approvalData = await ProWorkflowAPI.approveProjectRequest(requestId, assignmentData);
-    
     console.log(`Successfully approved project request ${requestId}`);
     
-    // Clear cache to force refresh
     cache.clear();
     
     res.json(approvalData);
@@ -1452,10 +1558,9 @@ app.post('/api/chat', async (req, res) => {
   try {
     const { message, context } = req.body;
     
-    console.log('? AI Assistant Request:', message);
+    console.log('AI Assistant Request:', message);
     
-    // Generate intelligent response based on message content
-    let response = generateContextualResponse(message, context);
+    const response = generateContextualResponse(message, context);
     
     res.json({ 
       response: response,
@@ -1464,13 +1569,14 @@ app.post('/api/chat', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('? AI Assistant Error:', error);
+    console.error('AI Assistant Error:', error);
     res.status(500).json({ 
       error: 'AI Assistant temporarily unavailable',
       fallback: 'I can help you analyze your projects, identify bottlenecks, and suggest actions. Please try again.'
     });
   }
 });
+
 
 // Smart contextual responses for dashboard queries
 function generateContextualResponse(message, context) {
@@ -1494,11 +1600,11 @@ function generateContextualResponse(message, context) {
   }
   
   if (msg.includes('task') || msg.includes('message')) {
-    return "Your dashboard shows task assignments and communication health. Click the blue expand arrows to see detailed task lists for each project, and click the ? badges to see threaded task messages.";
+    return "Your dashboard shows task assignments and communication health. Click the blue expand arrows to see detailed task lists for each project, and click the badges to see threaded task messages.";
   }
   
   if (msg.includes('dashboard') || msg.includes('help')) {
-    return "Your dashboard shows: ? Active projects (<=2 days), ? Normal (3-7 days), ? Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
+    return "Your dashboard shows: Active projects (<=2 days), Normal (3-7 days), Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
   }
   
   // General responses
@@ -1510,6 +1616,8 @@ function generateContextualResponse(message, context) {
   return `I understand you're asking about "${message}". I can help you analyze your ProWorkflow data, identify communication gaps, track project health, and suggest actions. Your dashboard shows real-time project status with threaded messages. What specific insights would you like?`;
 }
 
+								
+								
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ 
@@ -1549,18 +1657,18 @@ function validateSecurityConfig() {
   const missing = requiredEnvVars.filter(env => !process.env[env]);
   
   if (missing.length > 0) {
-    console.error('? Missing required ProWorkflow environment variables:');
+    console.error('Missing required ProWorkflow environment variables:');
     missing.forEach(env => console.error(`   - ${env}`));
     return false;
   }
   
   // Check if demo password hashes are still being used
   if (!process.env.ADMIN_PASSWORD_HASH || process.env.ADMIN_PASSWORD_HASH.includes('placeholder')) {
-    console.warn('??  Using demo password hash - generate secure passwords for production');
-    console.warn('? Run: const bcrypt = require("bcrypt"); console.log(bcrypt.hashSync("your_password", 10));');
+    console.warn('Using demo password hash - generate secure passwords for production');
+    console.warn('Run: const bcrypt = require("bcrypt"); console.log(bcrypt.hashSync("your_password", 10));');
   }
   
-  console.log('? Basic security configuration validated');
+  console.log('Basic security configuration validated');
   return true;
 }
 
@@ -1572,18 +1680,17 @@ app.use((error, req, res, next) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`? ProWorkflow Combined Suite running on port ${PORT}`);
-  console.log(`? Login at: http://localhost:${PORT}/login`);
-  console.log(`? Dashboard available at: /`);
-  console.log(`? Assignment Queue available at: /assignment-queue`);
-  console.log(`? AI Assistant ready (configure API keys for full functionality)`);
-  console.log(`??  Security: Authentication required, rate limiting enabled, Helmet CSP configured`);
+  console.log(`ProWorkflow Combined Suite running on port ${PORT}`);
+  console.log(`Login at: http://localhost:${PORT}/login`);
+  console.log(`Dashboard available at: /`);
+  console.log(`Assignment Queue available at: /assignment-queue`);
+  console.log(`AI Assistant ready (configure API keys for full functionality)`);
+  console.log(`Security: Authentication required, rate limiting enabled, Helmet CSP configured`);
   
-  // Validate configuration
   if (!validateSecurityConfig()) {
-    console.error('? CONFIGURATION INCOMPLETE - See errors above');
+    console.error('CONFIGURATION INCOMPLETE - See errors above');
   } else {
-    console.log('? Server started successfully with security enabled');
+    console.log('Server started successfully with security enabled');
   }
 });
 

@@ -1083,12 +1083,20 @@
             </div>
         </div>
     </div>
+		
+		
+		
+		
+		
 		<script>
         let allProjects = [];
         let availableManagers = [];
         let expandedProjects = new Set();
         let currentSort = { field: 'idle', direction: 'desc' };
         let chatHistory = [];
+// TODO: Replace with the actual IDs from your PWF account
+const ACTIVE_STATUS_ID = 1;     // check a task that is "Active" to confirm
+const COMPLETE_STATUS_ID = 3;   // check a task that is "Complete" to confirm
 
 			
 			
@@ -1615,6 +1623,319 @@ if (cellData.dataProjectId) span.setAttribute('data-project-id', cellData.dataPr
 }
 			
 			
+// NEW: Missing toggleProject function that renderProjects is calling
+async function toggleProject(projectId, expandBtn) {
+    const expansionSection = document.getElementById(`expansion-${projectId}`);
+    
+    if (expandedProjects.has(projectId)) {
+        // Collapse
+        expandedProjects.delete(projectId);
+        expansionSection.classList.remove('expanded');
+        expandBtn.classList.remove('expanded');
+    } else {
+        // Expand and load content
+        expandedProjects.add(projectId);
+        expansionSection.classList.add('expanded');
+        expandBtn.classList.add('expanded');
+        
+        // Load enhanced project content
+        expansionSection.innerHTML = '<div class="loading">Loading project details...</div>';
+        await loadProjectExpansion(projectId);
+    }
+}
+
+// NEW: Enhanced project expansion with tasks
+async function loadProjectExpansion(projectId) {
+    try {
+        // Load project details, tasks, and messages in parallel
+        const [projectResponse, tasksResponse, messagesResponse] = await Promise.all([
+            fetch(`/api/rest/project/${projectId}`),
+            fetch(`/api/rest/project/${projectId}/tasks`),
+            fetch(`/api/rest/project/${projectId}/messages`)
+        ]);
+        
+        const projectData = await projectResponse.json();
+        const tasksData = await tasksResponse.json();
+        const messagesData = await messagesResponse.json();
+        
+        const expansionSection = document.getElementById(`expansion-${projectId}`);
+        
+        let html = '<div class="expansion-content">';
+        
+        // Project Description
+        if (projectData.project?.description) {
+            html += `
+                <div class="message-timeline">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Project Description</div>
+                    </div>
+                    <div style="padding: 1rem; color: #475569; line-height: 1.4;">
+                        ${projectData.project.description}
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Recent Messages with Threading
+        if (messagesData.messages?.length > 0) {
+            const recentMessages = messagesData.messages
+                .sort((a, b) => new Date(b.date) - new Date(a.date))
+                .slice(0, 5);
+            
+            html += `
+                <div class="message-timeline">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Recent Messages (${messagesData.count || 0} total)</div>
+                    </div>
+                    ${renderRecentMessages(recentMessages)}
+                </div>
+            `;
+        }
+        
+        // Tasks Table
+        if (tasksData.tasks?.length > 0) {
+            const tasksToShow = tasksData.tasks.slice(0, 20);
+            
+            html += `
+                <div class="message-timeline">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Tasks (${tasksData.tasks.length} total)</div>
+                    </div>
+                    ${renderTasksTable(tasksToShow, projectId)}
+                </div>
+            `;
+            
+            if (tasksData.tasks.length > 20) {
+                html += `<div style="padding: 1rem; color: #64748b; font-style: italic; text-align: center;">Showing first 20 of ${tasksData.tasks.length} tasks</div>`;
+            }
+        } else {
+            html += `
+                <div class="message-timeline">
+                    <div class="timeline-header">
+                        <div class="timeline-title">Tasks</div>
+                    </div>
+                    <div style="padding: 2rem; text-align: center; color: #64748b; font-style: italic;">No tasks found for this project</div>
+                </div>
+            `;
+        }
+        
+        html += '</div>';
+        expansionSection.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading project expansion:', error);
+        const expansionSection = document.getElementById(`expansion-${projectId}`);
+        expansionSection.innerHTML = '<div class="expansion-content"><div style="color: #ef4444; padding: 2rem; text-align: center;">Error loading project details</div></div>';
+    }
+}
+
+function renderRecentMessages(messages) {
+    return messages.map(message => {
+        const isReply = message.originalmessageid && message.originalmessageid !== message.id;
+        const messageDate = new Date(message.date).toLocaleDateString();
+        const messageTime = new Date(message.date).toLocaleTimeString();
+        
+        return `
+            <div class="message-item ${isReply ? 'thread-reply' : ''}">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author-name message-author ${message.authortype}">
+                            ${isReply ? '↳ ' : ''}${message.authorname}
+                        </span>
+                        <span class="message-date">${messageDate} ${messageTime}</span>
+                    </div>
+                    <div class="message-text">${stripHtmlTags(message.content)}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function renderTasksTable(tasks, projectId) {
+    let html = `
+        <table class="projects-table">
+            <thead>
+                <tr>
+                    <th style="width: 60px;">Number</th>
+                    <th style="width: 250px;">Title</th>
+                    <th style="width: 100px;">Priority</th>
+                    <th style="width: 120px;">Assigned</th>
+                    <th style="width: 100px;">Start Date</th>
+                    <th style="width: 100px;">Due Date</th>
+                    <th style="width: 80px;">Complete</th>
+                    <th style="width: 80px;">Time Alloc</th>
+                    <th style="width: 80px;">Time Spent</th>
+                    <th style="width: 60px;">Messages</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    tasks.forEach(task => {
+        const isCompleted = task.status === 'complete';
+        const isOverdue = task.dueDate && new Date(task.dueDate) < new Date() && !isCompleted;
+        
+        // Format dates for editing
+        const startDateISO = task.startDate ? new Date(task.startDate).toISOString().split('T')[0] : '';
+        const dueDateISO = task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '';
+        const startDateDisplay = task.startDate ? new Date(task.startDate).toLocaleDateString() : '-';
+        const dueDateDisplay = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-';
+        
+        html += `
+            <tr style="${isOverdue ? 'background-color: #fef2f2;' : ''} ${isCompleted ? 'opacity: 0.7;' : ''}">
+                <td>${task.id || '-'}</td>
+                <td style="${isCompleted ? 'text-decoration: line-through;' : ''}">${task.title}</td>
+                <td>${task.priority || 'Normal'}</td>
+                <td>${task.assignedTo || 'Unassigned'}</td>
+                <td>
+                    <span class="editable-date" onclick="editTaskDate('start', ${task.id}, '${startDateISO}', this)">
+                        ${startDateDisplay}
+                    </span>
+                </td>
+                <td style="${isOverdue ? 'color: #ef4444; font-weight: 600;' : ''}">
+                    <span class="editable-date" onclick="editTaskDate('due', ${task.id}, '${dueDateISO}', this)">
+                        ${dueDateDisplay}
+                    </span>
+                </td>
+                <td style="text-align: center;">
+                    <input type="checkbox" ${isCompleted ? 'checked' : ''} 
+onchange="updateTaskCompletion(${task.id}, this.checked, this)"
+                           style="transform: scale(1.2); cursor: pointer;">
+                </td>
+                <td style="font-family: monospace; font-size: 0.8rem;">${task.timeAllocated || '0:00'}</td>
+                <td style="font-family: monospace; font-size: 0.8rem;">${task.timeSpent || '0:00'}</td>
+                <td style="text-align: center;">
+                    <button onclick="openTaskMessages(${task.id}, '${task.title?.replace(/'/g, "\\'")}')">💬</button>
+                </td>
+            </tr>
+        `;
+    });
+    
+    html += '</tbody></table>';
+    return html;
+}
+
+// Task date editing
+function editTaskDate(dateType, taskId, currentValue, element) {
+    const input = document.createElement('input');
+    input.type = 'date';
+    input.value = currentValue;
+    input.style.cssText = 'position: absolute; z-index: 1000; padding: 0.5rem; border: 2px solid #667eea; border-radius: 4px;';
+    
+    const rect = element.getBoundingClientRect();
+    input.style.left = rect.left + 'px';
+    input.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+    
+    document.body.appendChild(input);
+    input.focus();
+    input.click();
+    
+    input.onchange = async () => {
+        if (input.value !== currentValue) {
+            await updateTaskDate(taskId, dateType, input.value);
+            element.textContent = input.value ? new Date(input.value).toLocaleDateString() : '-';
+        }
+        document.body.removeChild(input);
+    };
+    
+    input.onblur = () => {
+        setTimeout(() => {
+            if (document.body.contains(input)) {
+                document.body.removeChild(input);
+            }
+        }, 200);
+    };
+}
+
+async function updateTaskDate(taskId, dateType, newDate) {
+    try {
+        const field = dateType === 'start' ? 'startdate' : 'duedate';
+        const response = await fetch(`/api/rest/task/${taskId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ [field]: newDate })
+        });
+        
+        const result = await response.json();
+        if (!result.success) {
+            throw new Error(result.error || 'Update failed');
+        }
+        
+        console.log(`Updated task ${taskId} ${dateType} date`);
+    } catch (error) {
+        console.error(`Error updating ${dateType} date:`, error);
+        alert(`Failed to update ${dateType} date: ${error.message}`);
+    }
+}
+
+
+async function updateTaskCompletion(taskId, isCompleted, checkboxElement) {
+  const endpoint = isCompleted
+    ? `/api/rest/task/${taskId}/complete`
+    : `/api/rest/task/${taskId}/reactivate`;
+
+  const body = isCompleted
+    ? JSON.stringify({ completedate: new Date().toISOString().split('T')[0] })
+    : null;
+
+  try {
+    const response = await fetch(endpoint, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body
+    });
+
+    const result = await response.json();
+    console.log('[DEBUG] Task update response:', result);
+
+    if (!result.success && result.status !== 'Success') {
+      throw new Error(result.error || result.message || 'Update failed');
+    }
+
+    // Update UI
+    const row = checkboxElement.closest('tr');
+    const titleCell = row.children[1];
+    if (isCompleted) {
+      row.style.opacity = '0.7';
+      titleCell.style.textDecoration = 'line-through';
+    } else {
+      row.style.opacity = '1';
+      titleCell.style.textDecoration = 'none';
+    }
+  } catch (err) {
+    console.error(`❌ Failed to update task ${taskId}:`, err);
+    checkboxElement.checked = !isCompleted; // rollback
+    alert(`Failed to update task completion: ${err.message}`);
+  }
+}
+
+
+function openTaskMessages(taskId, taskTitle) {
+    // You can implement task message modal here if needed
+    // For now, just log the task
+    console.log(`Opening messages for task ${taskId}: ${taskTitle}`);
+    alert(`Task messages feature - Task ${taskId}: ${taskTitle}`);
+}
+
+// Add CSS for editable dates
+const style = document.createElement('style');
+style.textContent = `
+    .editable-date {
+        cursor: pointer;
+        padding: 2px 4px;
+        border-radius: 3px;
+        transition: background-color 0.2s;
+    }
+    .editable-date:hover {
+        background-color: #e0e7ff;
+        text-decoration: underline;
+    }
+`;
+document.head.appendChild(style);
+			
+			
+			
+			
         // Continue with remaining functions in the same pattern...
         // (I'll include the rest of the essential functions)
 
@@ -1744,7 +2065,6 @@ if (cellData.dataProjectId) span.setAttribute('data-project-id', cellData.dataPr
         });
 			
 	
-			
     </script>
 
 </body>

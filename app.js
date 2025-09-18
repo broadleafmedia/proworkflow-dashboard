@@ -1,4 +1,6 @@
 require('dotenv').config();
+const OpenAI = require("openai");
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 // ProWorkflow Combined App - Dashboard + Assignment Queue
 // Single Heroku deployment serving both interfaces with SECURITY
 const express = require('express');
@@ -433,6 +435,27 @@ app.get('/robots.txt', (req, res) => {
   res.send(`User-agent: *\nDisallow: /`);
 });
 
+	app.post("/api/chat", async (req, res) => {
+  try {
+    const { message, history = [] } = req.body;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: "You are a helpful assistant for ProWorkflow projects." },
+        ...history,
+        { role: "user", content: message }
+      ],
+    });
+
+    res.json({ reply: completion.choices[0].message });
+  } catch (err) {
+    console.error("Chat error:", err);
+    res.status(500).json({ error: "Failed to get reply" });
+  }
+});
+
+	
 // Static files and API rate limiting
 app.use(express.static('public'));
 app.use('/api', apiLimiter);

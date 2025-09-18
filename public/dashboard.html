@@ -1227,6 +1227,48 @@ async function loadStatusOptions() {
     }
 }
 
+			
+			  // 🔹 Helper to append messages to the chat window
+    function addMessage(text, sender) {
+      const messages = document.getElementById('chatMessages');
+
+      const messageDiv = document.createElement('div');
+      messageDiv.className = `chat-message ${sender}`;
+      messageDiv.textContent = text;
+
+      messages.appendChild(messageDiv);
+      messages.scrollTop = messages.scrollHeight; // auto-scroll
+    }
+
+    // 🔹 Update sendMessage to use the backend API
+    async function sendMessage() {
+      const input = document.getElementById('chatInput');
+      const userMessage = input.value.trim();
+      if (!userMessage) return;
+
+      addMessage(userMessage, "user");
+      input.value = "";
+
+      try {
+        const response = await fetch("/api/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ message: userMessage, history: chatHistory })
+        });
+        const data = await response.json();
+        const reply = data.reply.content || "No reply";
+
+        addMessage(reply, "agent");
+        chatHistory.push({ role: "user", content: userMessage });
+        chatHistory.push({ role: "assistant", content: reply });
+      } catch (err) {
+        addMessage("⚠️ Error talking to assistant", "agent");
+      }
+    }
+			
+			    // Event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+			
         // Create ProWorkflow-style dropdown
         function createStatusDropdown(statuses, currentStatusText, onSelect) {
             const dropdown = document.createElement('div');
@@ -2397,26 +2439,30 @@ document.head.appendChild(style);
             }
         }
 
-        async function sendMessage() {
-            const input = document.getElementById('chatInput');
-            const messages = document.getElementById('chatMessages');
-            const userMessage = input.value.trim();
-            if (!userMessage) return;
-            
-            const userMessageDiv = document.createElement('div');
-            userMessageDiv.className = 'chat-message user';
-            userMessageDiv.textContent = userMessage;
-            messages.appendChild(userMessageDiv);
-            
-            input.value = '';
-            
-            const aiMessageDiv = document.createElement('div');
-            aiMessageDiv.className = 'chat-message agent';
-            aiMessageDiv.textContent = 'I understand your question about: "' + userMessage + '". I can help you analyze your ProWorkflow data and suggest actions.';
-            messages.appendChild(aiMessageDiv);
-            
-            messages.scrollTop = messages.scrollHeight;
-        }
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const userMessage = input.value.trim();
+  if (!userMessage) return;
+
+  addMessage(userMessage, "user");
+  input.value = "";
+
+  try {
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: userMessage, history: chatHistory })
+    });
+    const data = await response.json();
+    const reply = data.reply.content || "No reply";
+
+    addMessage(reply, "agent");
+    chatHistory.push({ role: "user", content: userMessage });
+    chatHistory.push({ role: "assistant", content: reply });
+  } catch (err) {
+    addMessage("⚠️ Error talking to assistant", "agent");
+  }
+}
 
         // Event listeners
         document.addEventListener('DOMContentLoaded', function() {
@@ -2455,6 +2501,16 @@ document.head.appendChild(style);
         window.addEventListener('resize', function() {
             document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
         });
+	
+	
+	 const chatInput = document.getElementById('chatInput');
+      chatInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendMessage();
+        }
+      });
+    });
 	
     </script>
 

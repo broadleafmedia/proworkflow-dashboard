@@ -422,41 +422,59 @@
             color: #d97706;
         }
 
+			
+			
+/* Square expand buttons for both projects and tasks */
 .expand-btn {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 0.5rem;
-            cursor: pointer;
-            border-radius: 6px;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            width: 32px;
-            height: 32px;
-        }
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    padding: 0;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;   /* Force square */
+    height: 28px;  /* Force square */
+    min-width: 28px;  /* Prevent shrinking */
+    max-width: 28px;  /* Prevent growing */
+    flex-shrink: 0;   /* Don't shrink in flex containers */
+}
+.expand-btn:hover {
+    background: #e2e8f0;
+    border-color: #cbd5e1;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
 
-        .expand-btn:hover {
-            background: #e2e8f0;
-            border-color: #cbd5e1;
-            transform: none;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
+.expand-arrow {
+    width: 0;
+    height: 0;
+    border-left: 6px solid #667eea;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    transition: transform 0.3s ease;
+    transform-origin: 30% 50%;
+}
 
-        .expand-arrow {
-            width: 0;
-            height: 0;
-            border-left: 8px solid #667eea;
-            border-top: 5px solid transparent;
-            border-bottom: 5px solid transparent;
-            transition: transform 0.3s ease;
-            transform-origin: 35% 50%;
-        }
+.expand-btn.expanded .expand-arrow {
+    transform: rotate(90deg);
+}
 
-        .expand-btn.expanded .expand-arrow {
-            transform: rotate(90deg);
-        }
+/* Task-specific styling */
+.task-expand-btn {
+    width: 24px;
+    height: 24px;
+}
 
+.task-expand-btn .expand-arrow {
+    border-left: 5px solid #667eea;
+    border-top: 3px solid transparent;
+    border-bottom: 3px solid transparent;
+}
+			
+			
+			
         .project-expansion {
             display: none;
             background: #fafbfc;
@@ -752,7 +770,44 @@
             transform: none;
         }
 
-        /* RIGHT SIDEBAR CHAT */
+			.task-message-badge.none:hover {
+            transform: none;
+        }
+
+/* Message task context styling */
+        .message-task-context {
+            background: #f0f9ff;
+            color: #0c4a6e;
+            padding: 0.5rem 0.8rem;
+            border-radius: 8px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin: 0.4rem 0;
+            border-left: 4px solid #0ea5e9;
+            font-style: italic;
+        }
+
+        .message-task-context:hover {
+            background: #e0f2fe;
+        }
+			
+			/* Root message styling */
+        .root-message {
+            border-left: 3px solid #e2e8f0;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Thread reply styling - more subtle indent */
+        .thread-reply {
+            margin-left: 1.5rem;
+            background: #f8fafc;
+            border-left: 2px solid #cbd5e1;
+            border-radius: 0 8px 8px 0;
+            padding-left: 0.8rem;
+            margin-top: 0.3rem;
+        }
+        
+			/* RIGHT SIDEBAR CHAT */
         .chat-trigger {
             position: fixed;
             top: 50%;
@@ -970,6 +1025,48 @@
             color: #9ca3af;
             font-style: italic;
         }
+			
+			
+			/* Task expansion styling */
+.task-expansion-row {
+    background: #f8fafc;
+}
+
+.task-expansion-content {
+    padding: 0;
+}
+
+.task-expansion-inner {
+    padding: 1.5rem;
+    border-left: 4px solid #667eea;
+    background: #f8fafc;
+}
+
+.task-message-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.task-message-header h4 {
+    color: #374151;
+    font-size: 1rem;
+    margin-bottom: 0.25rem;
+}
+
+.task-message-header p {
+    color: #6b7280;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.task-messages-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+			
+			
+			
     </style>
 </head>
 	<body>
@@ -1153,49 +1250,64 @@ async function loadStatusOptions() {
             return dropdown;
         }
 
-        // Handle status badge clicks
-        document.addEventListener('click', async function(e) {
-            // Remove any existing dropdowns
-            document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
-            
-            if (e.target.classList.contains('status-badge')) {
-                e.preventDefault();
-                e.stopPropagation();
-                
-const statusBadge = e.target;
-const projectId = statusBadge.getAttribute('data-project-id');
-const currentStatusText = e.target.textContent.trim();
-console.log('🔍 Using project ID:', projectId);
-                
-                console.log(`📋 Status badge clicked - Project: ${projectId}, Current: ${currentStatusText}`);
-                
-                // Load status options
-                const statuses = await loadStatusOptions();
-                if (statuses.length === 0) {
-                    alert('Unable to load status options. Please try again.');
-                    return;
-                }
-                
-                // Create and position dropdown
-                const dropdown = createStatusDropdown(statuses, currentStatusText, async (selectedStatus) => {
-                    dropdown.remove();
-                    await updateProjectStatus(projectId, selectedStatus, e.target);
-                });
-                
-                // Position dropdown near the clicked badge
-                document.body.appendChild(dropdown);
-                const rect = e.target.getBoundingClientRect();
-                dropdown.style.left = rect.left + 'px';
-                dropdown.style.top = (rect.bottom + 5) + 'px';
-            }
+// FIXED: Status dropdown positioning that follows scroll
+document.addEventListener('click', async function(e) {
+    // Remove any existing dropdowns
+    document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
+    
+    if (e.target.classList.contains('status-badge')) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        const statusBadge = e.target;
+        const projectId = statusBadge.getAttribute('data-project-id');
+        const currentStatusText = e.target.textContent.trim();
+        
+        console.log(`📋 Status badge clicked - Project: ${projectId}, Current: ${currentStatusText}`);
+        
+        // Load status options
+        const statuses = await loadStatusOptions();
+        if (statuses.length === 0) {
+            alert('Unable to load status options. Please try again.');
+            return;
+        }
+        
+        // Create dropdown
+        const dropdown = createStatusDropdown(statuses, currentStatusText, async (selectedStatus) => {
+            dropdown.remove();
+            await updateProjectStatus(projectId, selectedStatus, e.target);
         });
+        
+// Position dropdown near the clicked badge (FIXED for scroll)
+        document.body.appendChild(dropdown);
+        const rect = e.target.getBoundingClientRect();
 
-        // Close dropdown when clicking elsewhere
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.pwf-status-dropdown') && !e.target.classList.contains('status-badge')) {
-                document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
-            }
-        });
+        // Account for page scroll
+        dropdown.style.position = 'absolute';
+        dropdown.style.left = (rect.left + window.scrollX) + 'px';
+        dropdown.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+        dropdown.style.zIndex = '10000';
+        
+        // Ensure dropdown stays within viewport
+        const dropdownRect = dropdown.getBoundingClientRect();
+        if (dropdownRect.right > window.innerWidth) {
+            dropdown.style.left = (window.innerWidth - dropdownRect.width - 10 + window.scrollX) + 'px';
+        }
+        if (dropdownRect.bottom > window.innerHeight) {
+            dropdown.style.top = (rect.top + window.scrollY - dropdownRect.height - 5) + 'px';
+        }
+    }
+});
+
+// ENHANCED: Close dropdown on scroll to prevent positioning issues
+window.addEventListener('scroll', function() {
+    document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
+});
+
+// Also close on window resize
+window.addEventListener('resize', function() {
+    document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
+});
 
 // Update project status from dashboard
 async function updateProjectStatus(projectId, statusObj, badgeElement) {
@@ -1676,18 +1788,18 @@ async function loadProjectExpansion(projectId) {
             `;
         }
         
-        // Recent Messages with Threading
+// Recent Messages with Threading (FIXED: Newest at bottom)
         if (messagesData.messages?.length > 0) {
             const recentMessages = messagesData.messages
-                .sort((a, b) => new Date(b.date) - new Date(a.date))
-                .slice(0, 5);
+                .sort((a, b) => new Date(a.date) - new Date(b.date))  // Changed: a.date - b.date (oldest first)
+                .slice(-5);  // Changed: Take last 5 instead of first 5
             
             html += `
                 <div class="message-timeline">
                     <div class="timeline-header">
                         <div class="timeline-title">Recent Messages (${messagesData.count || 0} total)</div>
                     </div>
-                    ${renderRecentMessages(recentMessages)}
+                    ${renderRecentMessages(recentMessages, tasksData.tasks)}
                 </div>
             `;
         }
@@ -1729,33 +1841,125 @@ async function loadProjectExpansion(projectId) {
     }
 }
 
-function renderRecentMessages(messages) {
-    return messages.map(message => {
-        const isReply = message.originalmessageid && message.originalmessageid !== message.id;
-        const messageDate = new Date(message.date).toLocaleDateString();
-        const messageTime = new Date(message.date).toLocaleTimeString();
+function renderRecentMessages(messages, tasks = []) {
+    // Build message threads
+    const messageMap = new Map();
+    const rootMessages = [];
+    
+    // First pass: create message objects
+    messages.forEach(message => {
+        messageMap.set(message.id, {
+            ...message,
+            replies: []
+        });
+    });
+    
+    // Second pass: build thread structure
+    messages.forEach(message => {
+        const messageObj = messageMap.get(message.id);
         
-        return `
-            <div class="message-item ${isReply ? 'thread-reply' : ''}">
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-author-name message-author ${message.authortype}">
-                            ${isReply ? '↳ ' : ''}${message.authorname}
-                        </span>
-                        <span class="message-date">${messageDate} ${messageTime}</span>
-                    </div>
-                    <div class="message-text">${stripHtmlTags(message.content)}</div>
-                </div>
-            </div>
-        `;
+        if (message.originalmessageid && messageMap.has(message.originalmessageid)) {
+            // This is a reply - add to parent's replies
+            const parent = messageMap.get(message.originalmessageid);
+            parent.replies.push(messageObj);
+        } else {
+            // This is a root message
+            rootMessages.push(messageObj);
+        }
+    });
+    
+    // Sort root messages by date (oldest first)
+    rootMessages.sort((a, b) => new Date(a.date) - new Date(b.date));
+    
+    // Sort replies within each thread by date (oldest first)
+    rootMessages.forEach(rootMessage => {
+        rootMessage.replies.sort((a, b) => new Date(a.date) - new Date(b.date));
+    });
+    
+    // Render threaded messages
+    return rootMessages.map(rootMessage => {
+        let html = renderSingleMessage(rootMessage, tasks, false); // false = not a reply
+        
+        // Add replies
+        if (rootMessage.replies.length > 0) {
+            html += rootMessage.replies.map(reply => 
+                renderSingleMessage(reply, tasks, true) // true = is a reply
+            ).join('');
+        }
+        
+        return html;
     }).join('');
 }
+
+// Helper function to render a single message
+function renderSingleMessage(message, tasks, isReply) {
+    const messageDate = new Date(message.date).toLocaleDateString();
+    const messageTime = new Date(message.date).toLocaleTimeString();
+    
+    // Find task title for root messages only
+    let taskTitle = null;
+    if (!isReply && tasks && tasks.length > 0) {
+        const messageContent = (message.content || '').toLowerCase();
+        
+        const taskMatches = tasks.map(task => {
+            const taskTitleLower = (task.title || '').toLowerCase();
+            let score = 0;
+            
+            const taskWords = taskTitleLower.split(/[\s\-_,()[\]{}|\\/:;"'<>?=+*&^%$#@!~`]+/)
+                .filter(word => word.length > 2)
+                .filter(word => !['the', 'and', 'or', 'but', 'for', 'with', 'from', 'this', 'that'].includes(word));
+            
+            taskWords.forEach(word => {
+                if (messageContent.includes(word)) {
+                    score += word.length;
+                }
+            });
+            
+            return { task, score };
+        });
+        
+        const bestMatch = taskMatches.find(match => match.score > 0);
+        if (bestMatch) {
+            taskTitle = bestMatch.task.title;
+        }
+    }
+    
+return `
+    <div class="message-item ${isReply ? 'thread-reply' : 'root-message'}">
+        <div class="message-content">
+            <div class="message-header">
+                    <span class="message-author-name message-author ${message.authortype}">
+                        ${isReply ? '↳ ' : ''}${message.authorname}
+                    </span>
+                    <span class="message-date">${messageDate} ${messageTime}</span>
+                </div>
+                ${taskTitle ? `
+                    <div class="message-task-context">
+                        📋 ${taskTitle}
+                    </div>
+                ` : ''}
+                <div class="message-text">${stripHtmlTags(message.content)}</div>
+                ${message.files && message.files.length > 0 ? `
+                    <div class="message-files">
+                        ${message.files.map(file => `
+                            <a href="${file.link}" target="_blank" class="message-file">
+                                📎 ${file.name} (${formatFileSize(file.size) || 'unknown size'})
+                            </a>
+                        `).join('')}
+                    </div>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
 
 function renderTasksTable(tasks, projectId) {
     let html = `
         <table class="projects-table">
             <thead>
                 <tr>
+					          <th style="width: 40px;"></th>
                     <th style="width: 60px;">Number</th>
                     <th style="width: 250px;">Title</th>
                     <th style="width: 100px;">Priority</th>
@@ -1781,34 +1985,37 @@ function renderTasksTable(tasks, projectId) {
         const startDateDisplay = task.startDate ? new Date(task.startDate).toLocaleDateString() : '-';
         const dueDateDisplay = task.dueDate ? new Date(task.dueDate).toLocaleDateString() : '-';
         
-        html += `
-            <tr style="${isOverdue ? 'background-color: #fef2f2;' : ''} ${isCompleted ? 'opacity: 0.7;' : ''}">
-                <td>${task.id || '-'}</td>
-                <td style="${isCompleted ? 'text-decoration: line-through;' : ''}">${task.title}</td>
-                <td>${task.priority || 'Normal'}</td>
-                <td>${task.assignedTo || 'Unassigned'}</td>
-                <td>
-                    <span class="editable-date" onclick="editTaskDate('start', ${task.id}, '${startDateISO}', this)">
-                        ${startDateDisplay}
-                    </span>
-                </td>
-                <td style="${isOverdue ? 'color: #ef4444; font-weight: 600;' : ''}">
-                    <span class="editable-date" onclick="editTaskDate('due', ${task.id}, '${dueDateISO}', this)">
-                        ${dueDateDisplay}
-                    </span>
-                </td>
-                <td style="text-align: center;">
-                    <input type="checkbox" ${isCompleted ? 'checked' : ''} 
-onchange="updateTaskCompletion(${task.id}, this.checked, this)"
-                           style="transform: scale(1.2); cursor: pointer;">
-                </td>
-                <td style="font-family: monospace; font-size: 0.8rem;">${task.timeAllocated || '0:00'}</td>
-                <td style="font-family: monospace; font-size: 0.8rem;">${task.timeSpent || '0:00'}</td>
-                <td style="text-align: center;">
-                    <button onclick="openTaskMessages(${task.id}, '${task.title?.replace(/'/g, "\\'")}')">💬</button>
-                </td>
-            </tr>
-        `;
+html += `
+    <tr style="${isOverdue ? 'background-color: #fef2f2;' : ''} ${isCompleted ? 'opacity: 0.7;' : ''}">
+        <td>
+            <button class="expand-btn task-expand-btn" onclick="toggleTask(${task.id}, this)">
+                <div class="expand-arrow"></div>
+            </button>
+        </td>
+        <td>${task.order || task.order1 || index + 1}</td>
+        <td style="${isCompleted ? 'text-decoration: line-through;' : ''}">${task.title}</td>
+        <td>${task.priority || 'Normal'}</td>
+        <td>${task.assignedTo || 'Unassigned'}</td>
+        <td>
+            <span class="editable-date" onclick="editTaskDate('start', ${task.id}, '${startDateISO}', this)">
+                ${startDateDisplay}
+            </span>
+        </td>
+        <td style="${isOverdue ? 'color: #ef4444; font-weight: 600;' : ''}">
+            <span class="editable-date" onclick="editTaskDate('due', ${task.id}, '${dueDateISO}', this)">
+                ${dueDateDisplay}
+            </span>
+        </td>
+        <td style="text-align: center;">
+            <input type="checkbox" ${isCompleted ? 'checked' : ''} 
+                   onchange="updateTaskCompletion(${task.id}, this.checked, this)"
+                   style="transform: scale(1.2); cursor: pointer;">
+        </td>
+        <td style="font-family: monospace; font-size: 0.8rem;">${task.timeAllocated || '0:00'}</td>
+        <td style="font-family: monospace; font-size: 0.8rem;">${task.timeSpent || '0:00'}</td>
+        <td>💬</td>
+    </tr>
+`;
     });
     
     html += '</tbody></table>';
@@ -1909,7 +2116,183 @@ async function updateTaskCompletion(taskId, isCompleted, checkboxElement) {
   }
 }
 
+	
+	
+		
+	
+	// Track expanded tasks
+let expandedTasks = new Set();
 
+async function toggleTask(taskId, expandBtn) {
+    console.log(`Toggling task ${taskId}`);
+    
+    // Find the task row and create expansion row if needed
+    const taskRow = expandBtn.closest('tr');
+    let expansionRow = taskRow.nextElementSibling;
+    
+    // Check if next row is our expansion row
+    if (!expansionRow || !expansionRow.classList.contains('task-expansion-row')) {
+        // Create new expansion row
+        expansionRow = document.createElement('tr');
+        expansionRow.className = 'task-expansion-row';
+        expansionRow.style.display = 'none';
+        
+        const expansionCell = document.createElement('td');
+        expansionCell.colSpan = 11; // All columns
+        
+        const expansionContent = document.createElement('div');
+        expansionContent.className = 'task-expansion-content';
+        expansionContent.id = `task-expansion-${taskId}`;
+        
+        expansionCell.appendChild(expansionContent);
+        expansionRow.appendChild(expansionCell);
+        
+        // Insert after current row
+        taskRow.parentNode.insertBefore(expansionRow, taskRow.nextSibling);
+    }
+    
+    if (expandedTasks.has(taskId)) {
+        // Collapse
+        expandedTasks.delete(taskId);
+        expansionRow.style.display = 'none';
+        expandBtn.classList.remove('expanded');
+    } else {
+        // Expand and load content
+        expandedTasks.add(taskId);
+        expansionRow.style.display = 'table-row';
+        expandBtn.classList.add('expanded');
+        
+        // Load task messages
+        const expansionContent = document.getElementById(`task-expansion-${taskId}`);
+        expansionContent.innerHTML = '<div class="loading">Loading task messages...</div>';
+        await loadTaskMessages(taskId, expansionContent);
+    }
+}
+
+async function loadTaskMessages(taskId, container) {
+    try {
+        console.log(`Loading messages for task ${taskId}`);
+        
+        // Load task messages and task details
+        const [taskMessagesResponse, taskDetailsResponse] = await Promise.all([
+            fetch(`/api/rest/task/${taskId}/messages`),
+            fetch(`/api/rest/task/${taskId}`)
+        ]);
+        
+        const taskMessagesData = await taskMessagesResponse.json();
+        const taskDetailsData = await taskDetailsResponse.json();
+        
+        const taskMessages = taskMessagesData.messages || [];
+        const taskDetails = taskDetailsData.task || {};
+        
+        console.log(`Found ${taskMessages.length} task-specific messages`);
+        
+        let html = '<div class="task-expansion-inner">';
+        
+        if (taskMessages.length > 0) {
+            // Has task-specific messages
+            const sortedMessages = taskMessages.sort((a, b) => new Date(a.date) - new Date(b.date));
+            html += `
+                <div class="task-message-header">
+                    <h4>Task Messages (${taskMessages.length} total)</h4>
+                    <p>Messages specifically attached to this task</p>
+                </div>
+                <div class="task-messages-list">
+                    ${renderTaskMessages(sortedMessages)}
+                </div>
+            `;
+        } else {
+            // No task messages - try to find relevant project messages
+            console.log('No task messages, checking for relevant project messages...');
+            
+            const projectId = taskDetails.projectid;
+            if (projectId) {
+                const projectMessagesResponse = await fetch(`/api/rest/project/${projectId}/messages`);
+                const projectMessagesData = await projectMessagesResponse.json();
+                const projectMessages = projectMessagesData.messages || [];
+                
+                // Use existing function to find relevant messages
+                const relevantMessages = getTaskContextMessages(projectMessages, taskDetails);
+                
+                if (relevantMessages.length > 0) {
+                    const sortedMessages = relevantMessages.sort((a, b) => new Date(a.date) - new Date(b.date));
+                    html += `
+                        <div class="task-message-header">
+                            <h4>Related Project Messages (${relevantMessages.length} found)</h4>
+                            <p>Project messages that appear related to this task</p>
+                        </div>
+                        <div class="task-messages-list">
+                            ${renderTaskMessages(sortedMessages)}
+                        </div>
+                    `;
+                } else {
+                    html += `
+                        <div class="task-message-header">
+                            <h4>No Messages Found</h4>
+                            <p>This task has no specific messages and no related project messages were found.</p>
+                        </div>
+                    `;
+                }
+            } else {
+                html += `
+                    <div class="task-message-header">
+                        <h4>No Messages Found</h4>
+                        <p>This task has no associated messages.</p>
+                    </div>
+                `;
+            }
+        }
+        
+        html += '</div>';
+        container.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading task messages:', error);
+        container.innerHTML = `
+            <div class="task-expansion-inner">
+                <div class="task-message-header">
+                    <h4>Error Loading Messages</h4>
+                    <p>Could not load messages for this task.</p>
+                </div>
+            </div>
+        `;
+    }
+}
+
+	
+	// Helper function to render task messages (ADD THIS)
+function renderTaskMessages(messages) {
+    return messages.map(message => {
+        const messageDate = new Date(message.date).toLocaleDateString();
+        const messageTime = new Date(message.date).toLocaleTimeString();
+        
+        return `
+            <div class="message-item">
+                <div class="message-content">
+                    <div class="message-header">
+                        <span class="message-author-name message-author ${message.authortype}">
+                            ${message.authorname}
+                        </span>
+                        <span class="message-date">${messageDate} ${messageTime}</span>
+                    </div>
+                    <div class="message-text">${stripHtmlTags(message.content)}</div>
+                    ${message.files && message.files.length > 0 ? `
+                        <div class="message-files">
+                            ${message.files.map(file => `
+                                <a href="${file.link}" target="_blank" class="message-file">
+                                    📎 ${file.name} (${formatFileSize(file.size) || 'unknown size'})
+                                </a>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+	
+	
+	
 function openTaskMessages(taskId, taskTitle) {
     // You can implement task message modal here if needed
     // For now, just log the task
@@ -2063,7 +2446,15 @@ document.head.appendChild(style);
             // Load projects after everything is set up
             loadProjects();
         });
-			
+			// Close dropdown on scroll to prevent positioning issues
+        window.addEventListener('scroll', function() {
+            document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
+        });
+
+        // Also close on window resize
+        window.addEventListener('resize', function() {
+            document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
+        });
 	
     </script>
 

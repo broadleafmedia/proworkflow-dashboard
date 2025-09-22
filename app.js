@@ -1,15 +1,4 @@
 require('dotenv').config();
-
-// OPTIONAL OpenAI initialization - only if API key exists
-let openai = null;
-if (process.env.OPENAI_API_KEY) {
-  const OpenAI = require("openai");
-  openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  console.log('✅ OpenAI client initialized');
-} else {
-  console.log('⚠️ OPENAI_API_KEY not found - AI chat will use fallback responses');
-}
-
 // ProWorkflow Combined App - Dashboard + Assignment Queue
 // Single Heroku deployment serving both interfaces with SECURITY
 const express = require('express');
@@ -23,6 +12,7 @@ const bcrypt = require('bcrypt');
 const crypto = require('crypto');
 const app = express();
 const PORT = process.env.PORT || 3000;
+
 // SECURITY MIDDLEWARE - WORKING VERSION
 app.use(helmet({
   contentSecurityPolicy: {
@@ -95,7 +85,7 @@ app.use((req, res, next) => {
 const ADMIN_USERS = [
   {
     username: 'admin',
-    passwordHash: process.env.ADMIN_PASSWORD_HASH || '$2b$10$rKUMD0j/vXGGtXmqOe8aZ.zDxBZxU8qLHQgHqOeQVYtQzWQrLzK2q',
+    passwordHash: process.env.ADMIN_PASSWORD_HASH || '$2b$10$placeholder_hash',
     role: 'admin'
   },
   {
@@ -132,32 +122,24 @@ app.use((req, res, next) => {
   }
   return requireAuth(req, res, next);
 });
+
+
 	
-	// =================================================================================
-// BUSINESS DAY CALCULATOR HELPERS
+	
+// =================================================================================
+// BUSINESS DAY CALCULATOR
 // =================================================================================
 
-/**
- * Calculate business days between two dates (excludes weekends).
- * @param {Date} startDate - Starting date
- * @param {Date} endDate - Ending date (default: today)
- * @returns {number} Number of business days
- */
 function getBusinessDaysDifference(startDate, endDate = new Date()) {
   if (!startDate || isNaN(startDate.getTime())) {
     return 0;
   }
-  
   const start = new Date(startDate);
   const end = new Date(endDate);
-
-  // Normalize to midnight
   start.setHours(0, 0, 0, 0);
   end.setHours(0, 0, 0, 0);
-  
   let businessDays = 0;
   const currentDate = new Date(start);
-  
   while (currentDate < end) {
     const dayOfWeek = currentDate.getDay();
     if (dayOfWeek !== 0 && dayOfWeek !== 6) {
@@ -165,16 +147,9 @@ function getBusinessDaysDifference(startDate, endDate = new Date()) {
     }
     currentDate.setDate(currentDate.getDate() + 1);
   }
-  
   return businessDays;
 }
 
-/**
- * Get communication health status using business days.
- * @param {Date} lastMessageDate - Date of last message
- * @param {boolean} isRushProject - Whether this is a rush project
- * @returns {Object} Health status info
- */
 function getCommunicationHealthBusiness(lastMessageDate, isRushProject = false) {
   if (!lastMessageDate) {
     return {
@@ -184,15 +159,11 @@ function getCommunicationHealthBusiness(lastMessageDate, isRushProject = false) 
       description: 'No communication data'
     };
   }
-  
   const businessDays = getBusinessDaysDifference(lastMessageDate);
-  
-  const thresholds = isRushProject
-    ? { active: 1, attention: 2, stale: 3 }   // RUSH projects
-    : { active: 3, attention: 4, stale: 5 };  // Normal projects
-  
+  const thresholds = isRushProject ? 
+    { active: 1, attention: 2, stale: 3 } :     
+    { active: 3, attention: 4, stale: 5 };
   let status, className, description;
-  
   if (businessDays <= thresholds.active) {
     status = 'active';
     className = 'communication-active';
@@ -206,15 +177,31 @@ function getCommunicationHealthBusiness(lastMessageDate, isRushProject = false) 
     className = 'communication-stale';
     description = `Stale (${businessDays} business days)`;
   }
-  
-  return {
-    status,
-    businessDays,
-    className,
-    description,
-    isRushProject
-  };
+  return { status, businessDays, className, description, isRushProject };
 }
+
+// Test endpoint
+app.get('/api/test/business-days', (req, res) => {
+  const testDate = new Date();
+  testDate.setDate(testDate.getDate() - 5);
+  const result = getCommunicationHealthBusiness(testDate, false);
+  const rushResult = getCommunicationHealthBusiness(testDate, true);
+  res.json({
+    message: 'Business day calculator test',
+    testDate: testDate.toISOString(),
+    normalProject: result,
+    rushProject: rushResult,
+    timestamp: new Date().toISOString()
+  });
+});
+// =================================================================================
+// END OF BUSINESS DAY CALCULATOR ADDITION
+// =================================================================================
+
+// =================================================================================
+// ASSIGNMENT QUEUE MONITORING - Add this section to your app.js
+// Place this AFTER the business day calculator (around line 150, before routes)
+// =================================================================================
 
 /**
  * Check if a project in Queue status is overdue for assignment
@@ -312,8 +299,208 @@ function getEnhancedProjectStatus(project) {
     }
   };
 }
-	
-	// Static files and API rate limiting
+
+// Test endpoint to verify assignment monitoring works
+app.get('/api/test/assignment-queue', (req, res) => {
+  const testProjects = [
+    {
+      id: 'test1',
+      number: '12345',
+      title: 'Test Normal Queue Project',
+      customstatus: 'Queue',
+      startdate: new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)).toISOString() // 2 days ago
+    },
+    {
+      id: 'test2', 
+      number: '12346',
+      title: 'Test RUSH Queue Project',
+      customstatus: 'RUSH - Queue',
+      startdate: new Date(Date.now() - (1 * 24 * 60 * 60 * 1000)).toISOString() // 1 day ago
+    },
+    {
+      id: 'test3',
+      number: '12347', 
+      title: 'Test Needs Attention Project',
+      customstatus: 'Needs Attention',
+      lastmodifiedutc: new Date(Date.now() - (3 * 24 * 60 * 60 * 1000)).toISOString() // 3 days ago
+    }
+  ];
+  
+  const results = testProjects.map(project => ({
+    project: {
+      number: project.number,
+      title: project.title,
+      status: project.customstatus
+    },
+    analysis: getEnhancedProjectStatus(project)
+  }));
+  
+  res.json({
+    message: 'Assignment queue monitoring test',
+    results: results,
+    timestamp: new Date().toISOString()
+  });
+});
+// =================================================================================
+// END OF ASSIGNMENT QUEUE MONITORING ADDITION
+// =================================================================================
+
+// SECURITY ROUTES
+app.get('/login', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>ProWorkflow Dashboard - Login</title>
+      <style>
+        body { 
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+          height: 100vh; 
+          margin: 0; 
+        }
+        .login-form { 
+          background: white; 
+          padding: 2rem; 
+          border-radius: 12px; 
+          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+          width: 300px;
+        }
+        .login-form h1 { 
+          text-align: center; 
+          color: #333; 
+          margin-bottom: 1.5rem;
+        }
+        .form-group { 
+          margin-bottom: 1rem; 
+        }
+        .form-group label { 
+          display: block; 
+          margin-bottom: 0.5rem; 
+          font-weight: 600;
+          color: #555;
+        }
+        .form-group input { 
+          width: 100%; 
+          padding: 0.75rem; 
+          border: 2px solid #e1e8ed; 
+          border-radius: 8px; 
+          font-size: 1rem;
+          box-sizing: border-box;
+        }
+        .form-group input:focus { 
+          outline: none; 
+          border-color: #667eea; 
+        }
+        .login-btn { 
+          width: 100%; 
+          padding: 0.75rem; 
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+          color: white; 
+          border: none; 
+          border-radius: 8px; 
+          font-size: 1rem; 
+          font-weight: 600;
+          cursor: pointer;
+          transition: transform 0.2s ease;
+        }
+        .login-btn:hover { 
+          transform: translateY(-2px); 
+        }
+        .error { 
+          color: #dc2626; 
+          text-align: center; 
+          margin-bottom: 1rem; 
+        }
+        .demo-info {
+          background: #e0f2fe;
+          border: 1px solid #0891b2;
+          border-radius: 8px;
+          padding: 1rem;
+          margin-bottom: 1rem;
+          font-size: 0.9rem;
+        }
+      </style>
+    </head>
+    <body>
+      <form class="login-form" method="POST" action="/auth/login">
+        <h1>ProWorkflow Dashboard</h1>
+        ${req.query.error ? '<div class="error">Invalid credentials</div>' : ''}
+        
+        <div class="demo-info">
+          <strong>Demo Login:</strong><br>
+          Username: admin<br>
+          Password: demo123
+        </div>
+        
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="login-btn">Login</button>
+      </form>
+    </body>
+    </html>
+  `);
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body;
+  
+  console.log('Login attempt:');
+  console.log('Username:', username);
+  console.log('Password:', password);
+  
+  const user = ADMIN_USERS.find(u => u.username === username);
+  console.log('User found:', !!user);
+  
+  if (user) {
+    console.log('Stored hash:', user.passwordHash);
+    console.log('Hash length:', user.passwordHash.length);
+    console.log('Hash starts with $2b$:', user.passwordHash.startsWith('$2b$'));
+    
+    try {
+      const passwordMatch = await bcrypt.compare(password, user.passwordHash);
+      console.log('Password match result:', passwordMatch);
+      
+      if (passwordMatch) {
+        req.session.authenticated = true;
+        req.session.user = { username: user.username, role: user.role };
+        console.log('Login successful');
+        res.redirect('/');
+      } else {
+        console.log('Password mismatch');
+        res.redirect('/login?error=1');
+      }
+    } catch (error) {
+      console.log('Bcrypt error:', error.message);
+      res.redirect('/login?error=1');
+    }
+  } else {
+    console.log('User not found');
+    res.redirect('/login?error=1');
+  }
+});
+
+app.post('/auth/logout', (req, res) => {
+  req.session.destroy();
+  res.redirect('/login');
+});
+
+// Hide from search engines
+app.get('/robots.txt', (req, res) => {
+  res.type('text/plain');
+  res.send(`User-agent: *\nDisallow: /`);
+});
+
+// Static files and API rate limiting
 app.use(express.static('public'));
 app.use('/api', apiLimiter);
 
@@ -483,6 +670,185 @@ function getTaskContextMessages(projectMessages, task) {
   return relevantMessages;
 }
 
+
+// =================================================================================
+// BUSINESS DAY CALCULATOR HELPERS
+// =================================================================================
+
+/**
+ * Calculate business days between two dates (excludes weekends).
+ * @param {Date} startDate - Starting date
+ * @param {Date} endDate - Ending date (default: today)
+ * @returns {number} Number of business days
+ */
+function getBusinessDaysDifference(startDate, endDate = new Date()) {
+  if (!startDate || isNaN(startDate.getTime())) {
+    return 0;
+  }
+  
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+
+  // Normalize to midnight
+  start.setHours(0, 0, 0, 0);
+  end.setHours(0, 0, 0, 0);
+  
+  let businessDays = 0;
+  const currentDate = new Date(start);
+  
+  while (currentDate < end) {
+    const dayOfWeek = currentDate.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+      businessDays++;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  return businessDays;
+}
+
+/**
+ * Get communication health status using business days.
+ * @param {Date} lastMessageDate - Date of last message
+ * @param {boolean} isRushProject - Whether this is a rush project
+ * @returns {Object} Health status info
+ */
+function getCommunicationHealthBusiness(lastMessageDate, isRushProject = false) {
+  if (!lastMessageDate) {
+    return {
+      status: 'unknown',
+      businessDays: 0,
+      className: 'communication-unknown',
+      description: 'No communication data'
+    };
+  }
+  
+  const businessDays = getBusinessDaysDifference(lastMessageDate);
+  
+  const thresholds = isRushProject
+    ? { active: 1, attention: 2, stale: 3 }   // RUSH projects
+    : { active: 3, attention: 4, stale: 5 };  // Normal projects
+  
+  let status, className, description;
+  
+  if (businessDays <= thresholds.active) {
+    status = 'active';
+    className = 'communication-active';
+    description = `Active (${businessDays} business days)`;
+  } else if (businessDays <= thresholds.attention) {
+    status = 'attention';
+    className = 'communication-attention';
+    description = `Needs attention (${businessDays} business days)`;
+  } else {
+    status = 'stale';
+    className = 'communication-stale';
+    description = `Stale (${businessDays} business days)`;
+  }
+  
+  return {
+    status,
+    businessDays,
+    className,
+    description,
+    isRushProject
+  };
+}
+
+/**
+ * Check if a project in Queue status is overdue for assignment.
+ * @param {Object} project - Project object with status and dates
+ * @returns {Object} Assignment status info
+ */
+function getAssignmentQueueStatus(project) {
+  const customStatus = (project.customstatus || '').toLowerCase();
+  const isRushProject = customStatus.includes('rush');
+  
+  const isInQueue = customStatus === 'queue' || customStatus === 'rush - queue';
+  if (!isInQueue) {
+    return {
+      isInQueue: false,
+      isOverdue: false,
+      status: 'not_in_queue',
+      description: null
+    };
+  }
+  
+  const queueEntryDate = project.startdate ? new Date(project.startdate) : null;
+  if (!queueEntryDate) {
+    return {
+      isInQueue: true,
+      isOverdue: false,
+      status: 'unknown_entry_time',
+      description: 'Queue entry time unknown'
+    };
+  }
+  
+  const businessDaysSinceQueued = getBusinessDaysDifference(queueEntryDate);
+  const assignmentThreshold = isRushProject ? 0 : 1; // RUSH same-day, normal next-day
+  const isOverdue = businessDaysSinceQueued > assignmentThreshold;
+  
+  return {
+    isInQueue: true,
+    isOverdue,
+    businessDays: businessDaysSinceQueued,
+    status: isOverdue ? 'assignment_overdue' : 'in_queue',
+    description: isOverdue
+      ? `Assignment overdue (${businessDaysSinceQueued} business days in queue)`
+      : `In queue (${businessDaysSinceQueued} business days)`,
+    rushProject: isRushProject,
+    threshold: assignmentThreshold
+  };
+}
+
+/**
+ * Get enhanced project status with assignment monitoring.
+ * @param {Object} project - Project object
+ * @returns {Object} Enhanced status info
+ */
+function getEnhancedProjectStatus(project) {
+  const customStatus = (project.customstatus || '').toLowerCase();
+  const assignmentStatus = getAssignmentQueueStatus(project);
+  
+  let needsAttentionReason = null;
+  
+  if (customStatus === 'needs attention') {
+    const lastUpdated = project.lastmodifiedutc ? new Date(project.lastmodifiedutc) : null;
+    if (lastUpdated) {
+      const daysSinceUpdate = getBusinessDaysDifference(lastUpdated);
+      if (daysSinceUpdate > 1) {
+        needsAttentionReason = `No progress in ${daysSinceUpdate} business days`;
+      }
+    }
+  }
+  
+  if (customStatus === 'meeting scheduled') {
+    const lastUpdated = project.lastmodifiedutc ? new Date(project.lastmodifiedutc) : null;
+    if (lastUpdated) {
+      const daysSinceUpdate = getBusinessDaysDifference(lastUpdated);
+      if (daysSinceUpdate > 5) {
+        needsAttentionReason = `Meeting may have occurred - status update needed (${daysSinceUpdate} days)`;
+      }
+    }
+  }
+  
+  return {
+    assignmentStatus,
+    needsAttentionReason,
+    statusFlags: {
+      assignmentOverdue: assignmentStatus.isOverdue,
+      needsStatusUpdate: needsAttentionReason !== null,
+      isRush: customStatus.includes('rush')
+    }
+  };
+}
+
+
+
+
+// =================================================================================
+// MAIN ROUTES - Serve HTML Pages
+// =================================================================================
+
 // Shared API Functions
 class ProWorkflowAPI {
   static async makeRequest(endpoint, method = 'GET', data = null) {
@@ -565,9 +931,11 @@ class ProWorkflowAPI {
     return await this.makeRequest(`/projectrequests/${requestId}/approve`, 'PUT', assigneeData);
   }
 }
-// =================================================================================
-// MAIN ROUTES - Serve HTML Pages
-// =================================================================================
+
+
+
+
+
 
 // Dashboard (main page)
 app.get('/', (req, res) => {
@@ -579,204 +947,7 @@ app.get('/assignment-queue', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'assignment-queue.html'));
 });
 
-// SECURITY ROUTES
-app.get('/login', (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>ProWorkflow Dashboard - Login</title>
-      <style>
-        body { 
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-          display: flex; 
-          justify-content: center; 
-          align-items: center; 
-          height: 100vh; 
-          margin: 0; 
-        }
-        .login-form { 
-          background: white; 
-          padding: 2rem; 
-          border-radius: 12px; 
-          box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-          width: 300px;
-        }
-        .login-form h1 { 
-          text-align: center; 
-          color: #333; 
-          margin-bottom: 1.5rem;
-        }
-        .form-group { 
-          margin-bottom: 1rem; 
-        }
-        .form-group label { 
-          display: block; 
-          margin-bottom: 0.5rem; 
-          font-weight: 600;
-          color: #555;
-        }
-        .form-group input { 
-          width: 100%; 
-          padding: 0.75rem; 
-          border: 2px solid #e1e8ed; 
-          border-radius: 8px; 
-          font-size: 1rem;
-          box-sizing: border-box;
-        }
-        .form-group input:focus { 
-          outline: none; 
-          border-color: #667eea; 
-        }
-        .login-btn { 
-          width: 100%; 
-          padding: 0.75rem; 
-          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
-          color: white; 
-          border: none; 
-          border-radius: 8px; 
-          font-size: 1rem; 
-          font-weight: 600;
-          cursor: pointer;
-          transition: transform 0.2s ease;
-        }
-        .login-btn:hover { 
-          transform: translateY(-2px); 
-        }
-        .error { 
-          color: #dc2626; 
-          text-align: center; 
-          margin-bottom: 1rem; 
-        }
-        .demo-info {
-          background: #e0f2fe;
-          border: 1px solid #0891b2;
-          border-radius: 8px;
-          padding: 1rem;
-          margin-bottom: 1rem;
-          font-size: 0.9rem;
-        }
-      </style>
-    </head>
-    <body>
-      <form class="login-form" method="POST" action="/auth/login">
-        <h1>ProWorkflow Dashboard</h1>
-        ${req.query.error ? '<div class="error">Invalid credentials</div>' : ''}
-        
-        <div class="demo-info">
-          <strong>Demo Login:</strong><br>
-          Username: admin<br>
-          Password: demo123
-        </div>
-        
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input type="text" id="username" name="username" required>
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" required>
-        </div>
-        <button type="submit" class="login-btn">Login</button>
-      </form>
-    </body>
-    </html>
-  `);
-});
-
-app.post('/auth/login', async (req, res) => {
-  const { username, password } = req.body;
-  
-  console.log('Login attempt:');
-  console.log('Username:', username);
-  console.log('Password:', password);
-  
-  const user = ADMIN_USERS.find(u => u.username === username);
-  console.log('User found:', !!user);
-  
-  if (user) {
-    console.log('Stored hash:', user.passwordHash);
-    console.log('Hash length:', user.passwordHash.length);
-    console.log('Hash starts with $2b$:', user.passwordHash.startsWith('$2b$'));
-    
-    try {
-      const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-      console.log('Password match result:', passwordMatch);
-      
-      if (passwordMatch) {
-        req.session.authenticated = true;
-        req.session.user = { username: user.username, role: user.role };
-        console.log('Login successful');
-        res.redirect('/');
-      } else {
-        console.log('Password mismatch');
-        res.redirect('/login?error=1');
-      }
-    } catch (error) {
-      console.log('Bcrypt error:', error.message);
-      res.redirect('/login?error=1');
-    }
-  } else {
-    console.log('User not found');
-    res.redirect('/login?error=1');
-  }
-});
-
-app.post('/auth/logout', (req, res) => {
-  req.session.destroy();
-  res.redirect('/login');
-});
-
-// Hide from search engines
-app.get('/robots.txt', (req, res) => {
-  res.type('text/plain');
-  res.send(`User-agent: *\nDisallow: /`);
-});
-
-// Test endpoint to verify assignment monitoring works
-app.get('/api/test/assignment-queue', (req, res) => {
-  const testProjects = [
-    {
-      id: 'test1',
-      number: '12345',
-      title: 'Test Normal Queue Project',
-      customstatus: 'Queue',
-      startdate: new Date(Date.now() - (2 * 24 * 60 * 60 * 1000)).toISOString() // 2 days ago
-    },
-    {
-      id: 'test2', 
-      number: '12346',
-      title: 'Test RUSH Queue Project',
-      customstatus: 'RUSH - Queue',
-      startdate: new Date(Date.now() - (1 * 24 * 60 * 60 * 1000)).toISOString() // 1 day ago
-    },
-    {
-      id: 'test3',
-      number: '12347', 
-      title: 'Test Needs Attention Project',
-      customstatus: 'Needs Attention',
-      lastmodifiedutc: new Date(Date.now() - (3 * 24 * 60 * 60 * 1000)).toISOString() // 3 days ago
-    }
-  ];
-  
-  const results = testProjects.map(project => ({
-    project: {
-      number: project.number,
-      title: project.title,
-      status: project.customstatus
-    },
-    analysis: getEnhancedProjectStatus(project)
-  }));
-  
-  res.json({
-    message: 'Assignment queue monitoring test',
-    results: results,
-    timestamp: new Date().toISOString()
-  });
-});
-	
-	// DASHBOARD API ROUTES
+// DASHBOARD API ROUTES
 app.get('/api/rest/projects', async (req, res) => {
   try {
     const projects = await ProWorkflowAPI.getProjects();
@@ -955,44 +1126,47 @@ app.get('/api/rest/status-options', async (req, res) => {
     });
   }
 });
-	
+
 // PERFORMANCE OPTIMIZED: projects-table route with team filtering and messages
 app.get('/api/rest/projects-table', async (req, res) => {
   const { manager, sort } = req.query;
   try {
     console.log('=== STARTING OPTIMIZED PROJECT LOAD WITH MESSAGES ===');
-    
+
     // Get basic projects list
     const projectsData = await ProWorkflowAPI.getProjects();
     const projects = projectsData.projects || projectsData.data || projectsData || [];
-    
+
     console.log(`Found ${projects.length} total projects`);
 
-    const projectRequests = projects.map(project => 
-      () => Promise.all([
-        ProWorkflowAPI.makeRequest(`/projects/${project.id}`),
-        ProWorkflowAPI.makeRequest(`/projects/${project.id}/messages`).catch(error => {
-          console.warn(`Failed to get messages for project ${project.id}`);
-          return { messages: [], count: 0 };
-        })
-      ]).then(([details, messages]) => {
-        const originalProjectId = project.id;
-        return {
-          ...details.project,
-          id: originalProjectId,        // CRITICAL: Override with original ID
-          originalId: originalProjectId, // Backup reference
-          messageData: messages
-        };
-      })
-      .catch(error => {
-        console.error(`Failed to get details for project ${project.id}`);
-        return { 
-          ...project, 
-          id: project.id,
-          error: true, 
-          messageData: { messages: [], count: 0 } 
-        };
-      })
+    // Build requests for each project
+    const projectRequests = projects.map(project =>
+      () =>
+        Promise.all([
+          ProWorkflowAPI.makeRequest(`/projects/${project.id}`),
+          ProWorkflowAPI.makeRequest(`/projects/${project.id}/messages`).catch(() => {
+            console.warn(`Failed to get messages for project ${project.id}`);
+            return { messages: [], count: 0 };
+          })
+        ])
+          .then(([details, messages]) => {
+            const originalProjectId = project.id;
+            return {
+              ...details.project,
+              id: originalProjectId,
+              originalId: originalProjectId,
+              messageData: messages
+            };
+          })
+          .catch(() => {
+            console.error(`Failed to get details for project ${project.id}`);
+            return {
+              ...project,
+              id: project.id,
+              error: true,
+              messageData: { messages: [], count: 0 }
+            };
+          })
     );
 
     console.log('Starting rate-limited API calls (max 8 concurrent)...');
@@ -1000,97 +1174,86 @@ app.get('/api/rest/projects-table', async (req, res) => {
     const detailedProjects = await rateLimitedRequest(projectRequests, 8);
     const loadTime = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`Completed ${detailedProjects.length} API calls in ${loadTime}s`);
-    
-    // Filter by your team members as managers
-    const YOUR_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801]; 
-    
-    let tableProjects = detailedProjects
-      .filter(project => {
-        const isTeamProject = YOUR_TEAM_MANAGER_IDS.includes(project.managerid);
-        
-        if (manager && isTeamProject) {
-          return project.managerid == manager || project.managername.toLowerCase().includes(manager.toLowerCase());
-        }
-        return isTeamProject;
-      })
-      .map(project => {
-        const startDate = project.startdate || new Date();
-        const dueDate = project.duedate ? new Date(project.duedate) : null;
-        const lastUpdated = project.lastmodifiedutc || project.startdate || new Date();
-        const daysSinceStart = Math.floor((new Date() - new Date(startDate)) / (1000 * 60 * 60 * 24));
-        const daysSinceActivity = Math.floor((new Date() - new Date(lastUpdated)) / (1000 * 60 * 60 * 24));
-        
-        const daysUntilDue = dueDate ? Math.floor((dueDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
-        const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
-        const isUpcoming = daysUntilDue !== null && daysUntilDue <= 30 && daysUntilDue >= 0;
-        
-        const messages = project.messageData?.messages || [];
-        const messageCount = messages.length;
-        
-        let lastMessageDate = null;
-        let lastMessageAuthor = null;
-        let lastMessageType = null;
-        let daysSinceLastMessage = null;
-        let communicationHealth = 'none';
-        
-        if (messages.length > 0) {
-          const sortedMessages = messages.sort((a, b) => new Date(b.date) - new Date(a.date));
-          const lastMessage = sortedMessages[0];
-          
-          lastMessageDate = new Date(lastMessage.date);
-          lastMessageAuthor = lastMessage.authorname;
-          lastMessageType = lastMessage.authortype;
-          daysSinceLastMessage = Math.floor((new Date() - lastMessageDate) / (1000 * 60 * 60 * 24));
-          
-          const isRushProject = (project.customstatus || '').toLowerCase().includes('rush');
-          const healthResult = getCommunicationHealthBusiness(lastMessageDate, isRushProject);
-          
-          communicationHealth = healthResult.status;
-          daysSinceLastMessage = healthResult.businessDays;
-          
-          console.log(`Project ${project.number}: ${healthResult.description} ${isRushProject ? '(RUSH)' : ''}`);
-        }
 
-        const enhancedStatus = getEnhancedProjectStatus(project);
+    // 🚨 FILTER DISABLED FOR TESTING — include all projects
+    let tableProjects = detailedProjects.map(project => {
+      const startDate = project.startdate || new Date();
+      const dueDate = project.duedate ? new Date(project.duedate) : null;
+      const lastUpdated = project.lastmodifiedutc || project.startdate || new Date();
+      const daysSinceStart = Math.floor((new Date() - new Date(startDate)) / (1000 * 60 * 60 * 24));
+      const daysSinceActivity = Math.floor((new Date() - new Date(lastUpdated)) / (1000 * 60 * 60 * 24));
 
-        return {
-          number: project.number,
-          title: project.title,
-          projectId: project.id,
-          projectUrl: `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobdetails&Jobs_currentJobID=${project.id}`,
-          owner: project.managername || 'Unassigned',
-          managerId: project.managerid,
-          customStatus: project.customstatus || project.status || 'Active',
-          statusColor: project.customstatuscolor ? `#${project.customstatuscolor}` : '#4CAF50',
-          daysIdle: daysSinceActivity > 7 ? daysSinceActivity : 0,
-          daysSinceStart: daysSinceStart,
-          dueDate: dueDate ? dueDate.toLocaleDateString() : null,
-          daysUntilDue: daysUntilDue,
-          isOverdue: isOverdue,
-          isUpcoming: isUpcoming,
-          client: project.companyname || 'Unknown Client',
-          priority: project.priority || 'Medium',
-          startDate: startDate ? new Date(startDate).toLocaleDateString() : 'No start date',
-          status: project.status || 'active',
-          
-          messageCount: messageCount,
-          lastMessageDate: lastMessageDate,
-          lastMessageAuthor: lastMessageAuthor,
-          lastMessageType: lastMessageType,
-          daysSinceLastMessage: daysSinceLastMessage,
-          communicationHealth: communicationHealth,
-          messages: messages,
-          
-          assignmentStatus: enhancedStatus.assignmentStatus,
-          needsAttentionReason: enhancedStatus.needsAttentionReason,
-          statusFlags: enhancedStatus.statusFlags,
-          
-          isAssignmentOverdue: enhancedStatus.statusFlags.assignmentOverdue,
-          needsStatusUpdate: enhancedStatus.statusFlags.needsStatusUpdate,
-          isRush: enhancedStatus.statusFlags.isRush
-        };
-      });
-		
+      const daysUntilDue = dueDate ? Math.floor((dueDate - new Date()) / (1000 * 60 * 60 * 24)) : null;
+      const isOverdue = daysUntilDue !== null && daysUntilDue < 0;
+      const isUpcoming = daysUntilDue !== null && daysUntilDue <= 30 && daysUntilDue >= 0;
+
+      const messages = project.messageData?.messages || [];
+      const messageCount = messages.length;
+
+      let lastMessageDate = null;
+      let lastMessageAuthor = null;
+      let lastMessageType = null;
+      let daysSinceLastMessage = null;
+      let communicationHealth = 'none';
+
+      if (messages.length > 0) {
+        const sortedMessages = messages.sort((a, b) => new Date(b.date) - new Date(a.date));
+        const lastMessage = sortedMessages[0];
+
+        lastMessageDate = new Date(lastMessage.date);
+        lastMessageAuthor = lastMessage.authorname;
+        lastMessageType = lastMessage.authortype;
+
+        const isRushProject = (project.customstatus || '').toLowerCase().includes('rush');
+        const healthResult = getCommunicationHealthBusiness(lastMessageDate, isRushProject);
+
+        communicationHealth = healthResult.status;
+        daysSinceLastMessage = healthResult.businessDays;
+
+        console.log(`Project ${project.number}: ${healthResult.description} ${isRushProject ? '(RUSH)' : ''}`);
+      }
+
+      const enhancedStatus = getEnhancedProjectStatus(project);
+
+      return {
+        number: project.number,
+        title: project.title,
+        projectId: project.id,
+        projectUrl: `https://app.proworkflow.com/SafeNet/?fuseaction=jobs&fusesubaction=jobdetails&Jobs_currentJobID=${project.id}`,
+        owner: project.managername || 'Unassigned',
+        managerId: project.managerid,
+        customStatus: project.customstatus || project.status || 'Active',
+        statusColor: project.customstatuscolor ? `#${project.customstatuscolor}` : '#4CAF50',
+        daysIdle: daysSinceActivity > 7 ? daysSinceActivity : 0,
+        daysSinceStart,
+        dueDate: dueDate ? dueDate.toLocaleDateString() : null,
+        daysUntilDue,
+        isOverdue,
+        isUpcoming,
+        client: project.companyname || 'Unknown Client',
+        priority: project.priority || 'Medium',
+        startDate: startDate ? new Date(startDate).toLocaleDateString() : 'No start date',
+        status: project.status || 'active',
+
+        messageCount,
+        lastMessageDate,
+        lastMessageAuthor,
+        lastMessageType,
+        daysSinceLastMessage,
+        communicationHealth,
+        messages,
+
+        assignmentStatus: enhancedStatus.assignmentStatus,
+        needsAttentionReason: enhancedStatus.needsAttentionReason,
+        statusFlags: enhancedStatus.statusFlags,
+
+        isAssignmentOverdue: enhancedStatus.statusFlags.assignmentOverdue,
+        needsStatusUpdate: enhancedStatus.statusFlags.needsStatusUpdate,
+        isRush: enhancedStatus.statusFlags.isRush
+      };
+    });
+
+    // 🔀 Apply sorting
     switch (sort) {
       case 'idle':
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
@@ -1121,23 +1284,18 @@ app.get('/api/rest/projects-table', async (req, res) => {
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
     }
 
-    const uniqueManagersMap = new Map();
-    detailedProjects
-      .filter(p => YOUR_TEAM_MANAGER_IDS.includes(p.managerid))
-      .forEach(p => {
-        if (p.managerid && p.managername) {
-          uniqueManagersMap.set(p.managerid, { id: p.managerid, name: p.managername });
-        }
-      });
-    
-    const availableManagers = Array.from(uniqueManagersMap.values());
-    console.log(`Returning ${tableProjects.length} team projects with message data`);
+    // 🔍 Debug log
+    console.log('Detailed projects:', detailedProjects.length);
+    console.log('Returned (table) projects:', tableProjects.length);
+    if (tableProjects.length > 0) {
+      console.log('First project keys:', Object.keys(tableProjects[0]));
+    }
 
-    res.json({ 
+    res.json({
       projects: tableProjects,
-      availableManagers: availableManagers,
+      availableManagers: [], // can rebuild later if needed
       totalProjects: tableProjects.length,
-      loadTime: loadTime,
+      loadTime,
       cacheHits: detailedProjects.filter(p => !p.error).length
     });
   } catch (error) {
@@ -1145,6 +1303,9 @@ app.get('/api/rest/projects-table', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch REST table data' });
   }
 });
+
+
+
 
 // ENHANCED: Project tasks with smart task-relevant message integration
 app.get('/api/rest/project/:id/tasks', async (req, res) => {
@@ -1289,7 +1450,8 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
         };
       })
     );
-    
+	
+		
     const tasksWithAssignments = await rateLimitedRequest(taskRequests, 5);
     tasksWithAssignments.sort((a, b) => a.order - b.order);
     
@@ -1449,48 +1611,31 @@ app.put('/api/rest/project-requests/:id/approve', async (req, res) => {
   }
 });
 
-// UPDATED CHAT ENDPOINT - Handle missing OpenAI gracefully
-app.post("/api/chat", async (req, res) => {
+// AI Assistant Chat endpoint
+app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history = [] } = req.body;
-
-    // If OpenAI is not available, use fallback responses
-    if (!openai) {
-      console.log('🤖 Using fallback AI response (no OpenAI key)');
-      const fallbackResponse = generateContextualResponse(message, null);
-      return res.json({ 
-        reply: { content: fallbackResponse },
-        source: 'fallback'
-      });
-    }
-
-    // Use OpenAI if available
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: "You are a helpful assistant for ProWorkflow projects. You can analyze project health, identify bottlenecks, suggest follow-ups, and help with dashboard navigation." },
-        ...history,
-        { role: "user", content: message }
-      ],
-    });
-
-    res.json({ 
-      reply: completion.choices[0].message,
-      source: 'openai'
-    });
-  } catch (err) {
-    console.error("Chat error:", err);
+    const { message, context } = req.body;
     
-    // Fallback to contextual response on error
-    const fallbackResponse = generateContextualResponse(req.body.message || '', null);
+    console.log('AI Assistant Request:', message);
+    
+    const response = generateContextualResponse(message, context);
+    
     res.json({ 
-      reply: { content: fallbackResponse },
-      source: 'fallback-error'
+      response: response,
+      timestamp: new Date().toISOString(),
+      context: 'contextual-analysis'
+    });
+    
+  } catch (error) {
+    console.error('AI Assistant Error:', error);
+    res.status(500).json({ 
+      error: 'AI Assistant temporarily unavailable',
+      fallback: 'I can help you analyze your projects, identify bottlenecks, and suggest actions. Please try again.'
     });
   }
 });
 
-// Smart contextual responses for dashboard queries (ENHANCED)
+// Smart contextual responses for dashboard queries
 function generateContextualResponse(message, context) {
   const msg = message.toLowerCase();
   
@@ -1516,11 +1661,7 @@ function generateContextualResponse(message, context) {
   }
   
   if (msg.includes('dashboard') || msg.includes('help')) {
-    return "Your dashboard shows: Active projects (≤2 days), Normal (3-7 days), Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
-  }
-  
-  if (msg.includes('status') || msg.includes('update')) {
-    return "You can update project statuses by clicking on the colored status badges. This will show a dropdown with all available custom statuses for your team.";
+    return "Your dashboard shows: Active projects (<=2 days), Normal (3-7 days), Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
   }
   
   // General responses
@@ -1541,8 +1682,7 @@ app.get('/health', (req, res) => {
     cacheSize: cache.size,
     routes: ['Dashboard: /', 'Assignment Queue: /assignment-queue'],
     security: 'ENABLED',
-    user: req.session?.user?.username || 'anonymous',
-    aiEnabled: !!openai
+    user: req.session?.user?.username || 'anonymous'
   });
 });
 
@@ -1599,7 +1739,7 @@ app.listen(PORT, () => {
   console.log(`Login at: http://localhost:${PORT}/login`);
   console.log(`Dashboard available at: /`);
   console.log(`Assignment Queue available at: /assignment-queue`);
-  console.log(`AI Assistant ready: ${openai ? 'OpenAI enabled' : 'Fallback mode (no OpenAI key)'}`);
+  console.log(`AI Assistant ready (configure API keys for full functionality)`);
   console.log(`Security: Authentication required, rate limiting enabled, Helmet CSP configured`);
   
   if (!validateSecurityConfig()) {

@@ -1523,6 +1523,9 @@ if (result.success) {
         }
 
         async function loadProjects() {
+					    console.log("🚀 loadProjects() triggered, about to fetch");
+					    console.log('🚀 loadProjects() function triggered');
+
             const manager = document.getElementById('managerSelect').value;
             
             document.getElementById('projectsContent').innerHTML = '<div class="loading">Loading projects...</div>';
@@ -2333,186 +2336,55 @@ function renderTaskMessages(messages) {
     }).join('');
 }
 	
-	
-	
-function openTaskMessages(taskId, taskTitle) {
+	function openTaskMessages(taskId, taskTitle) {
     // You can implement task message modal here if needed
     // For now, just log the task
     console.log(`Opening messages for task ${taskId}: ${taskTitle}`);
     alert(`Task messages feature - Task ${taskId}: ${taskTitle}`);
 }
 
-// Add CSS for editable dates
-const style = document.createElement('style');
-style.textContent = `
-    .editable-date {
-        cursor: pointer;
-        padding: 2px 4px;
-        border-radius: 3px;
-        transition: background-color 0.2s;
-    }
-    .editable-date:hover {
-        background-color: #e0e7ff;
-        text-decoration: underline;
-    }
-`;
-document.head.appendChild(style);
-			
-			
-			
-			
-        // Continue with remaining functions in the same pattern...
-        // (I'll include the rest of the essential functions)
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 Dashboard loaded, starting project load…');
 
-        function updateManagerDropdown() {
-            const select = document.getElementById('managerSelect');
-            const currentValue = select.value;
-            
-            select.innerHTML = '<option value="">All Team Members</option>';
-            
-            availableManagers.forEach(manager => {
-                const option = document.createElement('option');
-                option.value = manager.id;
-                option.textContent = manager.name;
-                select.appendChild(option);
-            });
-            
-            if (currentValue) {
-                select.value = currentValue;
-            }
-        }
+    const managerSelect = document.getElementById('managerSelect');
+    const sortSelect = document.getElementById('sortSelect');
 
-        function updateStats(data) {
-            const projects = data.projects || [];
-            const totalProjects = projects.length;
-            
-            const activeCommProjects = projects.filter(p => p.communicationHealth === 'active').length;
-            const staleCommProjects = projects.filter(p => p.communicationHealth === 'stale').length;
-            const needingAttention = projects.filter(p => p.lastMessageType === 'client').length;
-            const waitingForClient = projects.filter(p => p.lastMessageType === 'staff').length;
-
-            document.getElementById('stats').innerHTML = `
-                <div class="stat-card">
-                    <div class="stat-number">${totalProjects}</div>
-                    <div class="stat-label">Total Projects</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #10b981;">${activeCommProjects}</div>
-                    <div class="stat-label">Active Communication</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #ef4444;">${staleCommProjects}</div>
-                    <div class="stat-label">Stale Communication</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #dc2626;">${needingAttention}</div>
-                    <div class="stat-label">Need Attention</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number" style="color: #f59e0b;">${waitingForClient}</div>
-                    <div class="stat-label">Waiting for Client</div>
-                </div>
-            `;
-        }
-
-        function getDaysClass(daysIdle) {
-            if (daysIdle > 30) return 'days-badge urgent';
-            if (daysIdle > 14) return 'days-badge warning';
-            return 'days-badge';
-        }
-
-        // Simplified chat and other functions
-        function toggleChatSidebar() {
-            const sidebar = document.getElementById('chatSidebar');
-            const trigger = document.getElementById('chatTrigger');
-            const mainContainer = document.getElementById('mainContainer');
-            
-            if (sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-                trigger.classList.remove('chat-open');
-                mainContainer.classList.remove('chat-open');
-            } else {
-                sidebar.classList.add('open');
-                trigger.classList.add('chat-open');
-                mainContainer.classList.add('chat-open');
-                document.getElementById('chatInput').focus();
-            }
-        }
-
-async function sendMessage() {
-  const input = document.getElementById('chatInput');
-  const userMessage = input.value.trim();
-  if (!userMessage) return;
-
-  addMessage(userMessage, "user");
-  input.value = "";
-
-  try {
-    const response = await fetch("/api/chat", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: userMessage, history: chatHistory })
-    });
-    const data = await response.json();
-    const reply = data.reply.content || "No reply";
-
-    addMessage(reply, "agent");
-    chatHistory.push({ role: "user", content: userMessage });
-    chatHistory.push({ role: "assistant", content: reply });
-  } catch (err) {
-    addMessage("⚠️ Error talking to assistant", "agent");
-  }
-}
-
-        // Event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 Dashboard loaded, starting project load...');
-            
-            document.getElementById('managerSelect').addEventListener('change', loadProjects);
-            document.getElementById('sortSelect').addEventListener('change', (e) => {
-                currentSort.field = e.target.value;
-                currentSort.direction = 'desc';
-                loadProjects();
-            });
-
-            const chatInput = document.getElementById('chatInput');
-            chatInput.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
-                }
-            });
-            
-            // Preload status options
-          //  setTimeout(loadStatusOptions, 2000);
-					
-					// Preload status options
-            loadStatusOptions();
-            
-            // Load projects after everything is set up
+    if (managerSelect) {
+        managerSelect.addEventListener('change', () => {
+            currentSort.direction = 'desc';
             loadProjects();
         });
-			// Close dropdown on scroll to prevent positioning issues
-        window.addEventListener('scroll', function() {
-            document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
-        });
+    }
 
-        // Also close on window resize
-        window.addEventListener('resize', function() {
-            document.querySelectorAll('.pwf-status-dropdown').forEach(d => d.remove());
+    if (sortSelect) {
+        sortSelect.addEventListener('change', (e) => {
+            currentSort.field = e.target.value || 'idle';
+            currentSort.direction = 'desc';
+            loadProjects();
         });
-	
-	
-	 const chatInput = document.getElementById('chatInput');
-      chatInput.addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          sendMessage();
-        }
-      });
-    });
-	
-    </script>
+    }
 
-</body>
+    const chatInput = document.getElementById('chatInput');
+    if (chatInput) {
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+
+    if (typeof loadStatusOptions === 'function') {
+        loadStatusOptions().catch(() => {/* non-fatal */});
+    }
+
+    console.log('🚀 loadProjects() triggered, about to fetch');
+    if (typeof loadProjects === 'function') {
+        loadProjects();
+    } else {
+        console.error('❌ loadProjects is not defined');
+    }
+});   // closes the event listener
+</script>
+	</body>
 </html>

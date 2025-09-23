@@ -13,7 +13,9 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-
+// SECURITY MIDDLEWARE - WORKING VERSION
+app.use(helmet({
+	
 const DEFAULT_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801];
 const YOUR_TEAM_MANAGER_IDS = (() => {
   const envManagerIds = process.env.YOUR_TEAM_MANAGER_IDS;

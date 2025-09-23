@@ -10,12 +10,51 @@ const helmet = require('helmet');
 const session = require('express-session');
 const bcrypt = require('bcrypt');
 const crypto = require('crypto');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+const DEFAULT_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801];
+const YOUR_TEAM_MANAGER_IDS = (() => {
+  const envManagerIds = process.env.YOUR_TEAM_MANAGER_IDS;
+  if (!envManagerIds) {
+    return DEFAULT_TEAM_MANAGER_IDS;
+  }
+
+  const parsedIds = envManagerIds
+    .split(',')
+    .map(id => Number(id.trim()))
+    .filter(id => Number.isFinite(id));
+
+  return parsedIds.length > 0 ? parsedIds : DEFAULT_TEAM_MANAGER_IDS;
+})();
+const TEAM_MANAGER_ID_SET = new Set(YOUR_TEAM_MANAGER_IDS);
+
+const normalizeManagerId = value => {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const getProjectManagerId = project =>
+  normalizeManagerId(
+    project?.managerid ??
+      project?.managerId ??
+      project?.managerID ??
+      project?.manager?.id
+  );
+
+const getProjectManagerName = project =>
+  project?.managername || project?.manager?.name || null;
 
 // SECURITY MIDDLEWARE - WORKING VERSION
 app.use(helmet({
   contentSecurityPolicy: {
+		
+		
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
@@ -1127,9 +1166,12 @@ app.get('/api/rest/status-options', async (req, res) => {
   }
 });
 
+const YOUR_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801];
+
 // PERFORMANCE OPTIMIZED: projects-table route with team filtering and messages
 app.get('/api/rest/projects-table', async (req, res) => {
-  const { manager, sort } = req.query;
+	
+	const { manager, sort } = req.query;
   try {
     console.log('=== STARTING OPTIMIZED PROJECT LOAD WITH MESSAGES ===');
 
@@ -1175,8 +1217,28 @@ app.get('/api/rest/projects-table', async (req, res) => {
     const loadTime = ((Date.now() - startTime) / 1000).toFixed(1);
     console.log(`Completed ${detailedProjects.length} API calls in ${loadTime}s`);
 
-    // 🚨 FILTER DISABLED FOR TESTING — include all projects
-    let tableProjects = detailedProjects.map(project => {
+
+		  const filteredProjects = detailedProjects.filter(project => {
+      const managerId = Number(project.managerid);
+      return !Number.isNaN(managerId) && YOUR_TEAM_MANAGER_IDS.includes(managerId);
+    });
+
+    const managerMap = new Map();
+    filteredProjects.forEach(project => {
+      const managerId = Number(project.managerid);
+      if (!Number.isNaN(managerId) && !managerMap.has(managerId)) {
+        managerMap.set(managerId, {
+          id: managerId,
+          name: project.managername || 'Unassigned'
+        });
+      }
+    });
+    const availableManagers = Array.from(managerMap.values());
+
+    console.log('Filtered projects count:', filteredProjects.length);
+
+    let tableProjects = filteredProjects.map(project => {
+		
       const startDate = project.startdate || new Date();
       const dueDate = project.duedate ? new Date(project.duedate) : null;
       const lastUpdated = project.lastmodifiedutc || project.startdate || new Date();
@@ -1253,7 +1315,7 @@ app.get('/api/rest/projects-table', async (req, res) => {
       };
     });
 
-    // 🔀 Apply sorting
+    // Apply sorting
     switch (sort) {
       case 'idle':
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
@@ -1284,17 +1346,17 @@ app.get('/api/rest/projects-table', async (req, res) => {
         tableProjects.sort((a, b) => b.daysIdle - a.daysIdle);
     }
 
-    // 🔍 Debug log
+    // Debug log
     console.log('Detailed projects:', detailedProjects.length);
     console.log('Returned (table) projects:', tableProjects.length);
     if (tableProjects.length > 0) {
       console.log('First project keys:', Object.keys(tableProjects[0]));
     }
 
-    res.json({
+		 res.json({
       projects: tableProjects,
-      availableManagers: [], // can rebuild later if needed
-      totalProjects: tableProjects.length,
+      availableManagers,
+			totalProjects: tableProjects.length,
       loadTime,
       cacheHits: detailedProjects.filter(p => !p.error).length
     });
@@ -1303,8 +1365,6 @@ app.get('/api/rest/projects-table', async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch REST table data' });
   }
 });
-
-
 
 
 // ENHANCED: Project tasks with smart task-relevant message integration

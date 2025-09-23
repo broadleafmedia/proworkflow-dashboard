@@ -1085,7 +1085,7 @@
             <div class="control-group">
                 <label for="managerSelect">Filter by Manager</label>
                 <select id="managerSelect">
-                    <option value="">All Team Members</option>
+                    <option value="">All managers</option>
                 </select>
             </div>
 
@@ -1181,20 +1181,42 @@
         </div>
     </div>
 		
-		
-		
-		
-		
 		<script>
         let allProjects = [];
         let availableManagers = [];
         let expandedProjects = new Set();
         let currentSort = { field: 'idle', direction: 'desc' };
+			
         let chatHistory = [];
+
+    function toggleChatSidebar() {
+        const sidebar = document.getElementById('chatSidebar');
+        const trigger = document.getElementById('chatTrigger');
+        const mainContainer = document.getElementById('mainContainer');
+
+        if (!sidebar || !trigger) {
+            console.warn('⚠️ Chat sidebar elements missing');
+            return;
+        }
+
+        const isOpen = sidebar.classList.toggle('open');
+
+        trigger.classList.toggle('chat-open', isOpen);
+        trigger.setAttribute('aria-expanded', String(isOpen));
+
+        if (mainContainer) {
+            mainContainer.classList.toggle('chat-open', isOpen);
+        }
+
+        sidebar.setAttribute('aria-hidden', String(!isOpen));
+    }
+
+    window.toggleChatSidebar = toggleChatSidebar;
 // TODO: Replace with the actual IDs from your PWF account
+
+			
 const ACTIVE_STATUS_ID = 1;     // check a task that is "Active" to confirm
 const COMPLETE_STATUS_ID = 3;   // check a task that is "Complete" to confirm
-
 			
 			
 			
@@ -1228,7 +1250,25 @@ async function loadStatusOptions() {
 }
 
 			
-			  // 🔹 Helper to append messages to the chat window
+    function toggleChatSidebar() {
+      const sidebar = document.getElementById('chatSidebar');
+      if (!sidebar) return;
+
+      const trigger = document.getElementById('chatTrigger');
+      const mainContainer = document.getElementById('mainContainer');
+      const isOpen = sidebar.classList.toggle('open');
+
+      if (trigger) {
+        trigger.classList.toggle('chat-open', isOpen);
+        trigger.setAttribute('aria-expanded', String(isOpen));
+      }
+
+      if (mainContainer) {
+        mainContainer.classList.toggle('chat-open', isOpen);
+      }
+    }
+
+    // 🔹 Helper to append messages to the chat window
     function addMessage(text, sender) {
       const messages = document.getElementById('chatMessages');
 
@@ -1265,6 +1305,31 @@ async function loadStatusOptions() {
         addMessage("⚠️ Error talking to assistant", "agent");
       }
     }
+
+    function toggleChatSidebar() {
+      const sidebar = document.getElementById('chatSidebar');
+      const trigger = document.getElementById('chatTrigger');
+      const mainContainer = document.getElementById('mainContainer');
+
+      if (!sidebar) {
+        console.warn('toggleChatSidebar: #chatSidebar not found');
+        return;
+      }
+
+      const isOpen = sidebar.classList.toggle('open');
+      sidebar.setAttribute('aria-hidden', String(!isOpen));
+
+      if (trigger) {
+        trigger.classList.toggle('chat-open', isOpen);
+        trigger.setAttribute('aria-expanded', String(isOpen));
+      }
+
+      if (mainContainer) {
+        mainContainer.classList.toggle('chat-open', isOpen);
+      }
+    }
+
+    window.toggleChatSidebar = toggleChatSidebar;
 			
 			    // Event listeners
     document.addEventListener('DOMContentLoaded', function() {
@@ -1424,10 +1489,13 @@ if (result.success) {
 
     console.log('=== updateProjectStatus END ===');
 }
-		
-			
+
+    });
+
+
         // THREADING HELPER FUNCTIONS
         function buildMessageThreads(messages) {
+					
             const messageMap = new Map();
             const rootMessages = [];
             
@@ -1514,6 +1582,8 @@ if (result.success) {
             return tempDiv.textContent || tempDiv.innerText || '';
         }
 
+        
+			
         function formatFileSize(bytes) {
             if (bytes === 0) return '0 Bytes';
             const k = 1024;
@@ -1522,9 +1592,104 @@ if (result.success) {
             return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
+       
+
+        function updateManagerDropdown() {
+            const managerSelect = document.getElementById('managerSelect');
+            if (!managerSelect) return;
+
+            const previousValue = managerSelect.value;
+            const previousLabel = managerSelect.selectedIndex >= 0
+                ? managerSelect.options[managerSelect.selectedIndex].textContent.trim()
+                : null;
+
+            managerSelect.innerHTML = '';
+
+            const defaultOption = document.createElement('option');
+            defaultOption.value = '';
+            defaultOption.textContent = 'All Team Members';
+            managerSelect.appendChild(defaultOption);
+
+            const managerOptions = [];
+            const seenKeys = new Set();
+
+            const addManagerOption = (value, label) => {
+                if (value === null || value === undefined) return;
+
+                const normalizedValue = String(value).trim();
+                const normalizedLabel = (label ?? '').toString().trim();
+                const keySource = normalizedValue || normalizedLabel;
+                if (!keySource) return;
+
+                const key = keySource.toLowerCase();
+                if (seenKeys.has(key)) return;
+
+                managerOptions.push({
+                    value: normalizedValue || normalizedLabel,
+                    label: normalizedLabel || normalizedValue || 'Unknown'
+                });
+                seenKeys.add(key);
+            };
+
+            if (Array.isArray(availableManagers) && availableManagers.length > 0) {
+                availableManagers.forEach(manager => {
+                    if (!manager) return;
+
+                    if (typeof manager === 'string') {
+                        addManagerOption(manager, manager);
+                        return;
+                    }
+
+                    if (typeof manager === 'object') {
+                        const rawValue = manager.id ?? manager.managerId ?? manager.managerid ?? manager.value ?? manager.email;
+                        const label = (manager.name ?? manager.label ?? manager.displayName ?? manager.fullName ?? manager.owner ?? manager.value ?? manager.email ?? rawValue);
+
+                        addManagerOption(
+                            rawValue !== undefined && rawValue !== null ? rawValue : label,
+                            label
+                        );
+                    }
+                });
+            }
+
+            if (managerOptions.length === 0 && Array.isArray(allProjects) && allProjects.length > 0) {
+                allProjects.forEach(project => {
+                    if (!project) return;
+
+                    const rawValue = project.managerId ?? project.managerid ?? project.owner ?? project.manager ?? project.managerName;
+                    const label = (project.owner || project.manager || project.managerName || 'Unassigned').toString().trim();
+                    const valueToUse = rawValue !== undefined && rawValue !== null ? rawValue : label;
+
+                    addManagerOption(valueToUse, label);
+                });
+            }
+
+            managerOptions.sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+
+            managerOptions.forEach(optionData => {
+                const option = document.createElement('option');
+                option.value = String(optionData.value);
+                option.textContent = optionData.label;
+                managerSelect.appendChild(option);
+            });
+
+            managerSelect.value = previousValue;
+
+            if (managerSelect.value !== previousValue && previousLabel) {
+                const normalizedPreviousLabel = previousLabel.toLowerCase();
+                const matchingOption = Array.from(managerSelect.options).find(option =>
+                    option.textContent.trim().toLowerCase() === normalizedPreviousLabel
+                );
+
+                if (matchingOption) {
+                    managerSelect.value = matchingOption.value;
+                }
+            }
+        }
+
         async function loadProjects() {
-					    console.log("🚀 loadProjects() triggered, about to fetch");
-					    console.log('🚀 loadProjects() function triggered');
+                                            console.log("🚀 loadProjects() triggered, about to fetch");
+                                            console.log('🚀 loadProjects() function triggered');
 
             const manager = document.getElementById('managerSelect').value;
             

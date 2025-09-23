@@ -1494,6 +1494,107 @@ if (result.success) {
 
 
         // THREADING HELPER FUNCTIONS
+			
+			
+
+function updateStats(data) {
+    const statsContainer = document.getElementById('stats');
+    if (!statsContainer) return;
+
+    const projects = data.projects || [];
+    
+    const totalProjects = projects.length;
+    const overdueProjects = projects.filter(p => p.isOverdue).length;
+    const staleProjects = projects.filter(p => p.communicationHealth === 'stale').length;
+    const activeProjects = projects.filter(p => p.communicationHealth === 'active').length;
+
+    statsContainer.innerHTML = `
+        <div class="stat-card">
+            <div class="stat-number">${totalProjects}</div>
+            <div class="stat-label">Total Projects</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">${activeProjects}</div>
+            <div class="stat-label">Active Communication</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">${staleProjects}</div>
+            <div class="stat-label">Stale Projects</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">${overdueProjects}</div>
+            <div class="stat-label">Overdue</div>
+        </div>
+    `;
+}
+			
+
+function getDaysClass(days) {
+    if (days === 0 || days === null || days === undefined) return '';
+    if (days > 30) return 'days-badge urgent';
+    if (days > 14) return 'days-badge warning';
+    return 'days-badge';
+}
+			
+			
+
+function getTaskContextMessages(projectMessages, taskDetails) {
+    if (!projectMessages || !projectMessages.length) {
+        return [];
+    }
+    
+    const taskTitle = (taskDetails.name || '').toLowerCase();
+    const taskAssignees = (taskDetails.contacts || []).map(c => c.name?.toLowerCase()).filter(Boolean);
+    
+    console.log(`Filtering messages for task "${taskDetails.name}"`);
+    console.log(`Task assignees: [${taskAssignees.join(', ')}]`);
+    
+    const commonWords = ['the','and','or','but','in','on','at','to','for','of','with','by','a','an','is','are','was','were','be','been','have','has','had','do','does','did','will','would','could','should','may','might','can','must','shall','design','task','project','update','create','add','remove','edit','review'];
+    const taskKeywords = taskTitle
+        .split(/[\s\-_,()[\]{}|\\/:;"'<>?=+*&^%$#@!~`]+/)
+        .map(word => word.toLowerCase().trim())
+        .filter(word => word.length > 2 && !commonWords.includes(word))
+        .slice(0, 5);
+    
+    console.log(`Task keywords: [${taskKeywords.join(', ')}]`);
+    
+    const relevantMessages = projectMessages.filter(message => {
+        const messageContent = (message.content || '').toLowerCase();
+        const messageAuthor = (message.authorname || '').toLowerCase();
+        
+        let relevanceScore = 0;
+        
+        // Check if message mentions task assignees
+        for (const assignee of taskAssignees) {
+            if (messageContent.includes(assignee) || messageAuthor.includes(assignee)) {
+                relevanceScore += 10;
+                break;
+            }
+        }
+        
+        // Check for keyword matches
+        let keywordMatches = 0;
+        for (const keyword of taskKeywords) {
+            if (messageContent.includes(keyword)) {
+                keywordMatches++;
+                relevanceScore += 3;
+            }
+        }
+        
+        // Check if author is assignee
+        if (taskAssignees.some(assignee => messageAuthor.includes(assignee))) {
+            relevanceScore += 8;
+        }
+        
+        return relevanceScore >= 5;
+    });
+    
+    console.log(`Found ${relevantMessages.length} relevant messages out of ${projectMessages.length} total project messages`);
+    
+    return relevantMessages;
+}
+			
+			
         function buildMessageThreads(messages) {
 					
             const messageMap = new Map();
@@ -1521,6 +1622,10 @@ if (result.success) {
             
             return rootMessages;
         }
+			
+			
+			
+			
 
         function renderThreadedMessages(threadedMessages, tasks = []) {
             return threadedMessages.map(message => {
@@ -1686,6 +1791,9 @@ if (result.success) {
                 }
             }
         }
+
+
+
 
         async function loadProjects() {
                                             console.log("🚀 loadProjects() triggered, about to fetch");

@@ -13,9 +13,8 @@ const crypto = require('crypto');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-// SECURITY MIDDLEWARE - WORKING VERSION
-app.use(helmet({
-	
+
+// TEAM MANAGER CONFIGURATION
 const DEFAULT_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801];
 const YOUR_TEAM_MANAGER_IDS = (() => {
   const envManagerIds = process.env.YOUR_TEAM_MANAGER_IDS;
@@ -30,6 +29,9 @@ const YOUR_TEAM_MANAGER_IDS = (() => {
 
   return parsedIds.length > 0 ? parsedIds : DEFAULT_TEAM_MANAGER_IDS;
 })();
+
+
+
 const TEAM_MANAGER_ID_SET = new Set(YOUR_TEAM_MANAGER_IDS);
 
 const normalizeManagerId = value => {
@@ -55,13 +57,11 @@ const getProjectManagerName = project =>
 // SECURITY MIDDLEWARE - WORKING VERSION
 app.use(helmet({
   contentSecurityPolicy: {
-		
-		
     directives: {
       defaultSrc: ["'self'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
       scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
-      scriptSrcAttr: ["'unsafe-inline'"], // This is the key line that was missing
+      scriptSrcAttr: ["'unsafe-inline'"],
       imgSrc: ["'self'", "data:", "https:", "http:"],
       connectSrc: ["'self'", "https://api.proworkflow.net"],
       fontSrc: ["'self'", "https:", "data:"],
@@ -1168,7 +1168,6 @@ app.get('/api/rest/status-options', async (req, res) => {
   }
 });
 
-const YOUR_TEAM_MANAGER_IDS = [1030, 4, 18, 605, 1029, 597, 801];
 
 // PERFORMANCE OPTIMIZED: projects-table route with team filtering and messages
 app.get('/api/rest/projects-table', async (req, res) => {
@@ -1220,23 +1219,48 @@ app.get('/api/rest/projects-table', async (req, res) => {
     console.log(`Completed ${detailedProjects.length} API calls in ${loadTime}s`);
 
 
-		  const filteredProjects = detailedProjects.filter(project => {
-      const managerId = Number(project.managerid);
-      return !Number.isNaN(managerId) && YOUR_TEAM_MANAGER_IDS.includes(managerId);
-    });
+// ALWAYS apply team filtering first, then manager filtering
+const teamFilteredProjects = detailedProjects.filter(project => {
+  const managerId = Number(project.managerid);
+  return !Number.isNaN(managerId) && YOUR_TEAM_MANAGER_IDS.includes(managerId);
+});
 
-    const managerMap = new Map();
-    filteredProjects.forEach(project => {
-      const managerId = Number(project.managerid);
-      if (!Number.isNaN(managerId) && !managerMap.has(managerId)) {
-        managerMap.set(managerId, {
-          id: managerId,
-          name: project.managername || 'Unassigned'
-        });
-      }
-    });
-    const availableManagers = Array.from(managerMap.values());
+console.log(`Team filtered: ${teamFilteredProjects.length} projects from team managers (from ${detailedProjects.length} total)`);
 
+// Then apply manager filtering if requested
+let filteredProjects;
+if (manager) {
+  console.log(`Filtering team projects by manager: ${manager}`);
+  filteredProjects = teamFilteredProjects.filter(project => {
+    const managerId = Number(project.managerid);
+    const managerIdMatch = managerId === Number(manager);
+    const managerNameMatch = (project.managername || '').toLowerCase().includes(manager.toLowerCase());
+    
+    if (managerIdMatch || managerNameMatch) {
+      console.log(`? Project ${project.number} matches manager filter`);
+      return true;
+    }
+    return false;
+  });
+  console.log(`Manager filtered: ${filteredProjects.length} projects`);
+} else {
+  // No specific manager filter - show all team projects
+  filteredProjects = teamFilteredProjects;
+}
+
+const managerMap = new Map();
+teamFilteredProjects.forEach(project => {  // <-- Use teamFilteredProjects here
+  const managerId = Number(project.managerid);
+  if (!Number.isNaN(managerId) && !managerMap.has(managerId)) {
+    managerMap.set(managerId, {
+      id: managerId,
+      name: project.managername || 'Unassigned'
+    });
+  }
+});
+const availableManagers = Array.from(managerMap.values());
+		
+		
     console.log('Filtered projects count:', filteredProjects.length);
 
     let tableProjects = filteredProjects.map(project => {

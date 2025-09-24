@@ -426,8 +426,8 @@
 			
 /* Square expand buttons for both projects and tasks */
 .expand-btn {
-    background: #f8fafc;
-    border: 1px solid #e2e8f0;
+background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+border: none;
     padding: 0;
     cursor: pointer;
     border-radius: 6px;
@@ -450,7 +450,7 @@
 .expand-arrow {
     width: 0;
     height: 0;
-    border-left: 6px solid #667eea;
+    border-left: 6px solid #c6d0ff;
     border-top: 4px solid transparent;
     border-bottom: 4px solid transparent;
     transition: transform 0.3s ease;
@@ -813,8 +813,8 @@
             top: 50%;
             right: 20px;
             transform: translateY(-50%);
-            width: 60px;
-            height: 60px;
+            width: 30px;
+            height: 90px;
             border-radius: 12px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             border: none;
@@ -1992,7 +1992,7 @@ dataProjectId: project.projectId || project.originalId || project.id || project.
 							
 							
             },
-            { content: project.startdate || '-' },
+						{ content: project.startDate || project.startdate || '-' },
             { content: project.dueDate || '-' },
             { 
                 content: communicationInfo.text, 
@@ -2277,17 +2277,17 @@ function renderTasksTable(tasks, projectId) {
         <table class="projects-table">
             <thead>
                 <tr>
-					          <th style="width: 40px;"></th>
-                    <th style="width: 60px;">Number</th>
-                    <th style="width: 250px;">Title</th>
-                    <th style="width: 100px;">Priority</th>
-                    <th style="width: 120px;">Assigned</th>
-                    <th style="width: 100px;">Start Date</th>
-                    <th style="width: 100px;">Due Date</th>
-                    <th style="width: 80px;">Complete</th>
-                    <th style="width: 80px;">Time Alloc</th>
-                    <th style="width: 80px;">Time Spent</th>
-                    <th style="width: 60px;">Messages</th>
+									<th style="width: 40px;"></th>
+									<th style="width: 60px;">Number</th>
+									<th style="width: 80px;">Complete</th>
+									<th style="width: 250px;">Title</th>
+									<th style="width: 100px;">Priority</th>
+									<th style="width: 120px;">Assigned</th>
+									<th style="width: 100px;">Start Date</th>
+									<th style="width: 100px;">Due Date</th>
+									<th style="width: 80px;">Time Alloc</th>
+									<th style="width: 80px;">Time Spent</th>
+									<th style="width: 60px;">Messages</th>
                 </tr>
             </thead>
             <tbody>
@@ -2310,28 +2310,28 @@ html += `
                 <div class="expand-arrow"></div>
             </button>
         </td>
-        <td>${task.order || task.order1 || index + 1}</td>
-        <td style="${isCompleted ? 'text-decoration: line-through;' : ''}">${task.title}</td>
-        <td>${task.priority || 'Normal'}</td>
-        <td>${task.assignedTo || 'Unassigned'}</td>
-        <td>
-            <span class="editable-date" onclick="editTaskDate('start', ${task.id}, '${startDateISO}', this)">
-                ${startDateDisplay}
-            </span>
-        </td>
-        <td style="${isOverdue ? 'color: #ef4444; font-weight: 600;' : ''}">
-            <span class="editable-date" onclick="editTaskDate('due', ${task.id}, '${dueDateISO}', this)">
-                ${dueDateDisplay}
-            </span>
-        </td>
-        <td style="text-align: center;">
-            <input type="checkbox" ${isCompleted ? 'checked' : ''} 
-                   onchange="updateTaskCompletion(${task.id}, this.checked, this)"
-                   style="transform: scale(1.2); cursor: pointer;">
-        </td>
-        <td style="font-family: monospace; font-size: 0.8rem;">${task.timeAllocated || '0:00'}</td>
-        <td style="font-family: monospace; font-size: 0.8rem;">${task.timeSpent || '0:00'}</td>
-        <td>💬</td>
+					<td>${task.order || task.order1 || index + 1}</td>
+					<td style="text-align: center;">
+							<input type="checkbox" ${isCompleted ? 'checked' : ''} 
+										 onchange="updateTaskCompletion(${task.id}, this.checked, this)"
+										 style="transform: scale(1.2); cursor: pointer;">
+					</td>
+					<td style="${isCompleted ? 'text-decoration: line-through;' : ''}">${task.title}</td>
+					<td>${task.priority || 'Normal'}</td>
+					<td>${task.assignedTo || 'Unassigned'}</td>
+					<td>
+							<span class="editable-date" onclick="editTaskDate('start', ${task.id}, '${startDateISO}', this)">
+									${startDateDisplay}
+							</span>
+					</td>
+					<td style="${isOverdue ? 'color: #ef4444; font-weight: 600;' : ''}">
+							<span class="editable-date" onclick="editTaskDate('due', ${task.id}, '${dueDateISO}', this)">
+									${dueDateDisplay}
+							</span>
+					</td>
+					<td style="font-family: monospace; font-size: 0.8rem;">${task.timeAllocated || '0:00'}</td>
+					<td style="font-family: monospace; font-size: 0.8rem;">${task.timeSpent || '0:00'}</td>
+					<td>💬</td>
     </tr>
 `;
     });

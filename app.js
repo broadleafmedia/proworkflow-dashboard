@@ -545,7 +545,8 @@ app.get('/robots.txt', (req, res) => {
 app.use(express.static('public'));
 app.use('/api', apiLimiter);
 
-// ProWorkflow API Configuration
+
+	// ProWorkflow API Configuration
 const PROWORKFLOW_CONFIG = {
   apiKey: process.env.PROWORKFLOW_API_KEY,
   username: process.env.PROWORKFLOW_USERNAME,
@@ -553,6 +554,10 @@ const PROWORKFLOW_CONFIG = {
   baseURL: 'https://api.proworkflow.net'
 };
 
+// ===== FIND AND REPLACE THESE LINES (around line 425-445) =====
+
+// OLD CODE TO REMOVE:
+/*
 // PERFORMANCE: Simple memory cache
 const cache = new Map();
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
@@ -573,6 +578,217 @@ function getCachedData(key) {
 function setCachedData(key, data) {
   cache.set(key, { data, timestamp: Date.now() });
   console.log(`Cache SET for ${key}`);
+}
+*/
+
+// ===== NEW SMART CACHE SYSTEM =====
+// PERFORMANCE: Enhanced Smart Cache System  
+class SmartCache {
+  constructor() {
+    this.cache = new Map();
+    this.dependencies = new Map();
+    this.stats = { hits: 0, misses: 0, clears: 0, sets: 0 };
+  }
+
+  getCacheDuration(cacheType) {
+    const durations = {
+      'projects-list': 3 * 60 * 1000,      // 3 minutes - changes frequently
+      'project-details': 5 * 60 * 1000,    // 5 minutes - moderate changes
+      'status-options': 15 * 60 * 1000,    // 15 minutes - rarely changes
+      'task-details': 2 * 60 * 1000,       // 2 minutes - changes often
+      'messages': 1 * 60 * 1000,           // 1 minute - real-time data
+      'team-members': 30 * 60 * 1000       // 30 minutes - very stable
+    };
+    return durations[cacheType] || 5 * 60 * 1000;
+  }
+
+  getCacheKey(endpoint, params = {}) {
+    const paramString = Object.keys(params)
+      .sort()
+      .map(key => `${key}=${params[key]}`)
+      .join('&');
+    return paramString ? `${endpoint}?${paramString}` : endpoint;
+  }
+
+  get(key, cacheType = 'default') {
+    const cached = this.cache.get(key);
+    const duration = this.getCacheDuration(cacheType);
+    
+    if (cached && Date.now() - cached.timestamp < duration) {
+      this.stats.hits++;
+      console.log(`💾 Smart Cache HIT for ${key} (${cacheType})`);
+      return cached.data;
+    }
+    
+    this.stats.misses++;
+    return null;
+  }
+
+  set(key, data, cacheType = 'default', dependencies = []) {
+    this.cache.set(key, { 
+      data, 
+      timestamp: Date.now(), 
+      cacheType,
+      dependencies: [...dependencies]
+    });
+    
+    dependencies.forEach(dep => {
+      if (!this.dependencies.has(dep)) {
+        this.dependencies.set(dep, new Set());
+      }
+      this.dependencies.get(dep).add(key);
+    });
+    
+    this.stats.sets++;
+    console.log(`🗄️ Smart Cache SET for ${key} (${cacheType})`);
+  }
+
+  clear() {
+    const size = this.cache.size;
+    this.cache.clear();
+    this.dependencies.clear();
+    this.stats.clears++;
+    console.log(`🧹 Smart Cache cleared ALL (${size} entries)`);
+  }
+
+  invalidate(dependency) {
+    const dependentKeys = this.dependencies.get(dependency);
+    if (dependentKeys) {
+      let cleared = 0;
+      dependentKeys.forEach(key => {
+        if (this.cache.has(key)) {
+          this.cache.delete(key);
+          cleared++;
+        }
+      });
+      this.dependencies.delete(dependency);
+      console.log(`🔄 Smart Cache invalidated ${cleared} entries for dependency: ${dependency}`);
+      return cleared;
+    }
+    return 0;
+  }
+
+  getStats() {
+    const total = this.stats.hits + this.stats.misses;
+    const hitRate = total > 0 ? (this.stats.hits / total * 100) : 0;
+    
+    const typeStats = {};
+    for (const [key, value] of this.cache.entries()) {
+      const type = value.cacheType;
+      if (!typeStats[type]) {
+        typeStats[type] = { count: 0, avgAge: 0 };
+      }
+      typeStats[type].count++;
+      typeStats[type].avgAge += (Date.now() - value.timestamp);
+    }
+    
+    Object.keys(typeStats).forEach(type => {
+      if (typeStats[type].count > 0) {
+        typeStats[type].avgAge = Math.round(typeStats[type].avgAge / typeStats[type].count / 1000);
+      }
+    });
+
+    return {
+      ...this.stats,
+      total,
+      hitRate: hitRate.toFixed(1) + '%',
+      size: this.cache.size,
+      dependencies: this.dependencies.size,
+      typeBreakdown: typeStats
+    };
+  }
+
+  cleanup() {
+    let cleaned = 0;
+    const now = Date.now();
+    
+    for (const [key, value] of this.cache.entries()) {
+      const duration = this.getCacheDuration(value.cacheType);
+      if (now - value.timestamp > duration) {
+        this.cache.delete(key);
+        cleaned++;
+      }
+    }
+    
+    if (cleaned > 0) {
+      console.log(`🧽 Smart Cache auto-cleaned ${cleaned} expired entries`);
+    }
+    return cleaned;
+  }
+
+  clearByType(cacheType) {
+    let cleared = 0;
+    for (const [key, value] of this.cache.entries()) {
+      if (value.cacheType === cacheType) {
+        this.cache.delete(key);
+        cleared++;
+      }
+    }
+    console.log(`🗑️ Smart Cache cleared ${cleared} entries of type: ${cacheType}`);
+    return cleared;
+  }
+
+  getDebugInfo() {
+    const entries = Array.from(this.cache.entries()).map(([key, value]) => ({
+      key: key.length > 50 ? key.substring(0, 50) + '...' : key,
+      type: value.cacheType,
+      age: Math.round((Date.now() - value.timestamp) / 1000) + 's',
+      size: JSON.stringify(value.data).length + ' chars',
+      deps: value.dependencies || [],
+      expired: Date.now() - value.timestamp > this.getCacheDuration(value.cacheType)
+    }));
+
+    return {
+      stats: this.getStats(),
+      entries: entries.slice(0, 20),
+      dependencies: Array.from(this.dependencies.entries()).map(([dep, keys]) => ({
+        dependency: dep,
+        affectedKeys: keys.size
+      }))
+    };
+  }
+}
+
+	
+// Initialize smart cache with legacy compatibility
+const smartCache = new SmartCache();
+
+// Legacy compatibility - keep existing code working
+const cache = {
+  get: (key) => smartCache.get(key),
+  set: (key, value) => smartCache.set(key, value),
+  has: (key) => smartCache.get(key) !== null,
+  delete: (key) => {
+    if (smartCache.cache.has(key)) {
+      smartCache.cache.delete(key);
+      return true;
+    }
+    return false;
+  },
+  clear: () => smartCache.clear(),
+  get size() { return smartCache.cache.size; }
+};
+
+	
+// Automatic cleanup every 5 minutes
+setInterval(() => {
+  smartCache.cleanup();
+}, 5 * 60 * 1000);
+
+console.log('🚀 Smart Cache initialized with automatic cleanup every 5 minutes');
+	
+	
+// Legacy compatibility functions - keep existing functions working
+function getCacheKey(endpoint) {
+  return smartCache.getCacheKey(endpoint);
+}
+
+function getCachedData(key) {
+  return smartCache.get(key, 'default');
+}
+
+function setCachedData(key, data) {
+  smartCache.set(key, data, 'default');
 }
 
 // Authentication headers for REST API
@@ -890,14 +1106,28 @@ function getEnhancedProjectStatus(project) {
 // MAIN ROUTES - Serve HTML Pages
 // =================================================================================
 
-// Shared API Functions
+
+
 class ProWorkflowAPI {
   static async makeRequest(endpoint, method = 'GET', data = null) {
     try {
-      // Check cache first (only for GET requests)
+      // Check cache first (only for GET requests) with smart cache types
       if (method === 'GET') {
-        const cacheKey = getCacheKey(endpoint);
-        const cached = getCachedData(cacheKey);
+        let cacheType = 'default';
+        
+        // Determine cache type based on endpoint
+        if (endpoint.includes('/projects') && !endpoint.includes('/messages') && !endpoint.includes('/tasks')) {
+          cacheType = endpoint === '/projects' ? 'projects-list' : 'project-details';
+        } else if (endpoint.includes('/customstatuses')) {
+          cacheType = 'status-options';
+        } else if (endpoint.includes('/tasks/')) {
+          cacheType = 'task-details';
+        } else if (endpoint.includes('/messages')) {
+          cacheType = 'messages';
+        }
+        
+        const cacheKey = smartCache.getCacheKey(endpoint);
+        const cached = smartCache.get(cacheKey, cacheType);
         if (cached) {
           return cached;
         }
@@ -915,9 +1145,28 @@ class ProWorkflowAPI {
 
       const response = await axios(config);
 
-      // Cache successful GET responses
+      // Cache successful GET responses with appropriate types
       if (method === 'GET') {
-        setCachedData(getCacheKey(endpoint), response.data);
+        let cacheType = 'default';
+        let dependencies = [];
+        
+        // Smart cache classification and dependencies
+        if (endpoint.includes('/projects') && !endpoint.includes('/messages') && !endpoint.includes('/tasks')) {
+          cacheType = endpoint === '/projects' ? 'projects-list' : 'project-details';
+          dependencies = ['projects'];
+        } else if (endpoint.includes('/customstatuses')) {
+          cacheType = 'status-options';
+          dependencies = ['status-config'];
+        } else if (endpoint.includes('/tasks/')) {
+          cacheType = 'task-details';
+          dependencies = ['tasks', 'projects'];
+        } else if (endpoint.includes('/messages')) {
+          cacheType = 'messages';
+          // Messages don't get dependencies - always fresh
+        }
+        
+        const cacheKey = smartCache.getCacheKey(endpoint);
+        smartCache.set(cacheKey, response.data, cacheType, dependencies);
       }
 
       return response.data;
@@ -926,6 +1175,7 @@ class ProWorkflowAPI {
       throw error;
     }
   }
+
 
   // Projects
   static async getProjects() {
@@ -974,10 +1224,6 @@ class ProWorkflowAPI {
 }
 
 
-
-
-
-
 // Dashboard (main page)
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'dashboard.html'));
@@ -1016,6 +1262,8 @@ app.get('/api/rest/tasks', async (req, res) => {
   }
 });
 
+
+
 // Update project status
 app.put('/api/rest/project/:id/status', async (req, res) => {
   try {
@@ -1044,9 +1292,10 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
     // Log PWF response
     console.log('[DEBUG] PWF response:', JSON.stringify(result));
 
-    // Clear cache and force immediate refresh
-    cache.clear();
-    console.log('Cache cleared, status should update on next load');
+    // Smart cache invalidation - only clear related data
+    smartCache.invalidate('projects');  // Clear project-related caches
+    smartCache.invalidate('status-config'); // Clear status-related caches
+    console.log('✨ Smart cache invalidation completed - only cleared relevant project data');
 
     res.json({ 
       success: true, 
@@ -1063,6 +1312,8 @@ app.put('/api/rest/project/:id/status', async (req, res) => {
     });
   }
 });
+
+
 
 // Update task (general update, not complete/reactivate)
 app.put('/api/rest/task/:id', async (req, res) => {
@@ -1772,21 +2023,52 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Cache status endpoint
+// Enhanced cache status endpoint with smart cache stats
 app.get('/api/cache-status', (req, res) => {
-  const cacheInfo = Array.from(cache.entries()).map(([key, value]) => ({
+  const cacheStats = smartCache.getStats();
+  
+  const entries = Array.from(smartCache.cache.entries()).map(([key, value]) => ({
     key: key.length > 50 ? key.substring(0, 50) + '...' : key,
+    type: value.cacheType,
     age: Math.round((Date.now() - value.timestamp) / 1000) + 's',
-    size: JSON.stringify(value.data).length + ' chars'
+    size: JSON.stringify(value.data).length + ' chars',
+    dependencies: value.dependencies || []
   }));
+
   res.json({
-    service: 'Combined ProWorkflow Suite Cache',
-    totalCached: cache.size,
-    cacheDuration: CACHE_DURATION / 1000 + 's',
-    entries: cacheInfo.slice(0, 20)
+    service: 'Enhanced ProWorkflow Smart Cache',
+    stats: cacheStats,
+    totalCached: smartCache.cache.size,
+    dependencyTracking: smartCache.dependencies.size,
+    entries: entries.slice(0, 15), // Show first 15 entries
+    cacheTypes: {
+      'projects-list': '3 min',
+      'project-details': '5 min', 
+      'status-options': '15 min',
+      'task-details': '2 min',
+      'messages': '1 min',
+      'team-members': '30 min'
+    }
   });
 });
 
+		
+// Enhanced debug endpoint
+app.get('/api/cache-debug', (req, res) => {
+  const debugInfo = smartCache.getDebugInfo();
+  
+  res.json({
+    service: 'SmartCache Debug Console',
+    timestamp: new Date().toISOString(),
+    ...debugInfo,
+    performance: {
+      memoryUsage: process.memoryUsage(),
+      uptime: process.uptime() + 's'
+    }
+  });
+});		
+		
+		
 // Security validation function
 function validateSecurityConfig() {
   const requiredEnvVars = [

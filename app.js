@@ -1718,7 +1718,7 @@ app.get('/api/rest/project/:id/tasks', async (req, res) => {
           title: task.name,
           status: taskInfo.status || 'active',
           completed: isCompleted,
-          assignedTo: assignedNames.length > 0 ? assignedNames.join(', ') : 'Unassigned',
+					assignedTo: assignedNames.length > 0 ? assignedNames.join(', ') : '-',
           dueDate: dueDate ? dueDate.toLocaleDateString() : null,
           dueDateStatus: dueDateStatus,
           daysUntilDue: daysUntilDue,

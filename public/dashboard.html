@@ -11,13 +11,13 @@
             box-sizing: border-box;
         }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f5f7fa;
-            color: #333;
-            line-height: 1.4;
-            font-size: 14px;
-        }
+				body {
+						font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+						background: #e5e7eb;
+						color: #333;
+						line-height: 1.4;
+						font-size: 14px;
+				}
 
         /* MAIN CONTAINER - ADJUST FOR SIDEBAR */
         .main-container {
@@ -441,6 +441,8 @@ border: none;
     max-width: 28px;  /* Prevent growing */
     flex-shrink: 0;   /* Don't shrink in flex containers */
 }
+			
+			
 .expand-btn:hover {
     background: #e2e8f0;
     border-color: #cbd5e1;
@@ -463,23 +465,23 @@ border: none;
 
 /* Task-specific styling */
 .task-expand-btn {
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
 .task-expand-btn .expand-arrow {
-    border-left: 5px solid #667eea;
-    border-top: 3px solid transparent;
-    border-bottom: 3px solid transparent;
+    border-left: 6px solid #c6d0ff;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
 }
 			
 			
-			
-        .project-expansion {
-            display: none;
-            background: #fafbfc;
-            border-left: 4px solid #667eea;
-        }
+				.project-expansion {
+						display: none;
+						background: #f1f5f9;
+						border-left: 4px solid #667eea;
+				}
 
         .project-expansion.expanded {
             display: block;
@@ -1038,7 +1040,7 @@ border: none;
 
 .task-expansion-inner {
     padding: 1.5rem;
-    border-left: 4px solid #667eea;
+    border-left: 4px solid #93c5fd;
     background: #f8fafc;
 }
 
@@ -2246,9 +2248,9 @@ return `
     <div class="message-item ${isReply ? 'thread-reply' : 'root-message'}">
         <div class="message-content">
             <div class="message-header">
-                    <span class="message-author-name message-author ${message.authortype}">
-                        ${isReply ? '↳ ' : ''}${message.authorname}
-                    </span>
+										<span class="message-author-name message-author ${message.authortype}">
+												${message.authorname}
+										</span>
                     <span class="message-date">${messageDate} ${messageTime}</span>
                 </div>
                 ${taskTitle ? `
@@ -2287,7 +2289,6 @@ function renderTasksTable(tasks, projectId) {
 									<th style="width: 100px;">Due Date</th>
 									<th style="width: 80px;">Time Alloc</th>
 									<th style="width: 80px;">Time Spent</th>
-									<th style="width: 60px;">Messages</th>
                 </tr>
             </thead>
             <tbody>
@@ -2318,7 +2319,7 @@ html += `
 					</td>
 					<td style="${isCompleted ? 'text-decoration: line-through;' : ''}">${task.title}</td>
 					<td>${task.priority || 'Normal'}</td>
-					<td>${task.assignedTo || 'Unassigned'}</td>
+					<td>${task.assignedTo || '-'}</td>
 					<td>
 							<span class="editable-date" onclick="editTaskDate('start', ${task.id}, '${startDateISO}', this)">
 									${startDateDisplay}
@@ -2331,7 +2332,6 @@ html += `
 					</td>
 					<td style="font-family: monospace; font-size: 0.8rem;">${task.timeAllocated || '0:00'}</td>
 					<td style="font-family: monospace; font-size: 0.8rem;">${task.timeSpent || '0:00'}</td>
-					<td>💬</td>
     </tr>
 `;
     });
@@ -2456,7 +2456,7 @@ async function toggleTask(taskId, expandBtn) {
         expansionRow.style.display = 'none';
         
         const expansionCell = document.createElement('td');
-        expansionCell.colSpan = 11; // All columns
+        expansionCell.colSpan = 10; // All columns
         
         const expansionContent = document.createElement('div');
         expansionContent.className = 'task-expansion-content';

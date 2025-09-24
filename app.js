@@ -1,9 +1,12 @@
 require('dotenv').config();
+console.log('? OpenAI Key loaded:', process.env.OPENAI_API_KEY ? 'YES' : 'NO');
+console.log('? OpenAI Key starts with sk-:', process.env.OPENAI_API_KEY?.startsWith('sk-'));
 // ProWorkflow Combined App - Dashboard + Assignment Queue
 // Single Heroku deployment serving both interfaces with SECURITY
 const express = require('express');
 const axios = require('axios');
 const path = require('path');
+const { OpenAI } = require('openai');
 // SECURITY IMPORTS
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
@@ -470,13 +473,7 @@ app.get('/login', (req, res) => {
       <form class="login-form" method="POST" action="/auth/login">
         <h1>ProWorkflow Dashboard</h1>
         ${req.query.error ? '<div class="error">Invalid credentials</div>' : ''}
-        
-        <div class="demo-info">
-          <strong>Demo Login:</strong><br>
-          Username: admin<br>
-          Password: demo123
-        </div>
-        
+               
         <div class="form-group">
           <label for="username">Username</label>
           <input type="text" id="username" name="username" required>
@@ -554,32 +551,11 @@ const PROWORKFLOW_CONFIG = {
   baseURL: 'https://api.proworkflow.net'
 };
 
-// ===== FIND AND REPLACE THESE LINES (around line 425-445) =====
-
-// OLD CODE TO REMOVE:
-/*
-// PERFORMANCE: Simple memory cache
-const cache = new Map();
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
-
-function getCacheKey(endpoint) {
-  return `${endpoint}`;
-}
-
-function getCachedData(key) {
-  const cached = cache.get(key);
-  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
-    console.log(`Cache HIT for ${key}`);
-    return cached.data;
-  }
-  return null;
-}
-
-function setCachedData(key, data) {
-  cache.set(key, { data, timestamp: Date.now() });
-  console.log(`Cache SET for ${key}`);
-}
-*/
+// OpenAI Configuration
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+	
 
 // ===== NEW SMART CACHE SYSTEM =====
 // PERFORMANCE: Enhanced Smart Cache System  
@@ -1948,67 +1924,241 @@ app.put('/api/rest/project-requests/:id/approve', async (req, res) => {
   }
 });
 
-// AI Assistant Chat endpoint
+// INTELLIGENT AI Assistant Chat endpoint - Replace the existing one
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, context } = req.body;
+    const { message, history } = req.body;
     
-    console.log('AI Assistant Request:', message);
+    console.log('? Smart AI Request:', message);
     
-    const response = generateContextualResponse(message, context);
+    // Get current dashboard data for context
+    const dashboardData = await getDashboardContext();
+    
+    // Build conversation for ChatGPT
+    const messages = [
+      {
+        role: "system",
+        content: generateProWorkflowSystemPrompt(dashboardData)
+      },
+      // Add previous conversation (keep last 6 messages for context)
+      ...(history || []).slice(-6),
+      {
+        role: "user",
+        content: message
+      }
+    ];
+
+    console.log('? Dashboard context:', {
+      projects: dashboardData.totalProjects,
+      stale: dashboardData.staleProjects,
+      overdue: dashboardData.overdueProjects
+    });
+
+    // Call ChatGPT
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Fast and cost-effective
+      messages: messages,
+      max_tokens: 400,
+      temperature: 0.7,
+    });
+
+    const aiReply = completion.choices[0].message.content;
+    
+    console.log('? ChatGPT responded:', aiReply.substring(0, 100) + '...');
     
     res.json({ 
-      response: response,
+      reply: { content: aiReply },
+      dashboardInsights: generateQuickInsights(dashboardData),
       timestamp: new Date().toISOString(),
-      context: 'contextual-analysis'
+      context: 'chatgpt-intelligent-analysis'
     });
     
   } catch (error) {
-    console.error('AI Assistant Error:', error);
-    res.status(500).json({ 
-      error: 'AI Assistant temporarily unavailable',
-      fallback: 'I can help you analyze your projects, identify bottlenecks, and suggest actions. Please try again.'
+    console.error('? ChatGPT Error:', error.message);
+    
+    // Fallback to smart contextual responses if ChatGPT fails
+		const fallbackResponse = "I'm your AI assistant. I can analyze your projects and provide insights, but I'm temporarily offline. Please try again in a moment.";
+    
+    res.json({ 
+      reply: { content: fallbackResponse + '\n\n(Note: AI temporarily using fallback - ChatGPT unavailable)' },
+      error: 'ChatGPT unavailable',
+      timestamp: new Date().toISOString(),
+      context: 'fallback-smart-responses'
     });
   }
 });
 
-// Smart contextual responses for dashboard queries
-function generateContextualResponse(message, context) {
-  const msg = message.toLowerCase();
-  
-  // Project analysis queries
-  if (msg.includes('stale') || msg.includes('communication')) {
-    return "I can see your communication health data. Projects with red badges (>7 days) need immediate attention. Would you like me to identify which clients to follow up with?";
+
+
+// Helper: Get live dashboard data for AI context - FIXED with detailed project data
+async function getDashboardContext() {
+  try {
+    console.log('? Loading dashboard context for AI...');
+    
+    // Get all projects first
+    const projectsData = await ProWorkflowAPI.getProjects();
+    let allProjects = projectsData.projects || projectsData.data || projectsData || [];
+    
+    console.log(`? AI Context: Found ${allProjects.length} total projects`);
+
+    // Get detailed data for first 50 projects (like your dashboard does)
+    console.log('? Getting detailed project data for AI analysis...');
+    const detailedProjectRequests = allProjects.slice(0, 50).map(project =>
+      () => ProWorkflowAPI.makeRequest(`/projects/${project.id}`)
+        .then(details => ({
+          ...details.project,
+          id: project.id,
+          originalId: project.id
+        }))
+        .catch(() => {
+          console.warn(`Failed to get details for project ${project.id}`);
+          return null;
+        })
+    );
+
+    // Use your existing rate-limited request function
+    const detailedProjects = await rateLimitedRequest(detailedProjectRequests, 8);
+    const validProjects = detailedProjects.filter(p => p !== null);
+
+    console.log(`? Got detailed data for ${validProjects.length} projects`);
+
+    // Now filter using the detailed project data (same logic as your dashboard)
+    const teamProjects = validProjects.filter(project => {
+      const managerId = Number(project.managerid);
+      const isTeamProject = !Number.isNaN(managerId) && YOUR_TEAM_MANAGER_IDS.includes(managerId);
+      if (isTeamProject) {
+        console.log(`? Team project: ${project.number} - ${project.title} (Manager: ${project.managername}, ID: ${managerId})`);
+      }
+      return isTeamProject;
+    });
+
+    console.log(`? AI Context: ${teamProjects.length} team projects after filtering`);
+
+    // Calculate project health metrics
+    const staleProjects = teamProjects.filter(p => {
+      const lastModified = p.lastmodifiedutc ? new Date(p.lastmodifiedutc) : null;
+      if (!lastModified) return false;
+      const daysSince = Math.floor((new Date() - lastModified) / (1000 * 60 * 60 * 24));
+      return daysSince > 7;
+    });
+
+    const overdueProjects = teamProjects.filter(p => {
+      const dueDate = p.duedate ? new Date(p.duedate) : null;
+      return dueDate && dueDate < new Date();
+    });
+
+    const rushProjects = teamProjects.filter(p => 
+      (p.customstatus || '').toLowerCase().includes('rush')
+    );
+
+    const inProgressProjects = teamProjects.filter(p => 
+      (p.customstatus || '').toLowerCase().includes('progress')
+    );
+
+    const queueProjects = teamProjects.filter(p => 
+      (p.customstatus || '').toLowerCase().includes('queue')
+    );
+
+    const managers = [...new Set(teamProjects.map(p => p.managername).filter(Boolean))];
+
+    console.log(`? AI Metrics: ${teamProjects.length} total, ${staleProjects.length} stale, ${overdueProjects.length} overdue, ${rushProjects.length} rush`);
+
+    return {
+      totalProjects: teamProjects.length,
+      staleProjects: staleProjects.length,
+      overdueProjects: overdueProjects.length,
+      rushProjects: rushProjects.length,
+      inProgressProjects: inProgressProjects.length,
+      queueProjects: queueProjects.length,
+      managers: managers,
+      topProjects: teamProjects.slice(0, 5).map(p => ({
+        number: p.number,
+        title: p.title?.substring(0, 50) + (p.title?.length > 50 ? '...' : ''),
+        status: p.customstatus,
+        owner: p.managername,
+        daysIdle: p.lastmodifiedutc ? Math.floor((new Date() - new Date(p.lastmodifiedutc)) / (1000 * 60 * 60 * 24)) : 0
+      })),
+      statusBreakdown: getStatusBreakdown(teamProjects)
+    };
+  } catch (error) {
+    console.error('? Error getting dashboard context:', error);
+    return {
+      totalProjects: 0,
+      staleProjects: 0,
+      overdueProjects: 0,
+      rushProjects: 0,
+      managers: [],
+      topProjects: [],
+      error: 'Unable to load current data',
+      errorMessage: error.message
+    };
   }
-  
-  if (msg.includes('overdue') || msg.includes('deadline')) {
-    return "I can help you identify overdue projects and tasks. Check the red deadline badges in your project list. Would you like me to prioritize them by urgency?";
-  }
-  
-  if (msg.includes('rush') || msg.includes('urgent')) {
-    return "RUSH projects are highlighted in yellow. I can help you track their progress and ensure they're moving through the workflow quickly.";
-  }
-  
-  if (msg.includes('assignment') || msg.includes('assign')) {
-    return "For assignment management, check your Assignment Queue at /assignment-queue. I can help you match projects to the right team members based on skills and workload.";
-  }
-  
-  if (msg.includes('task') || msg.includes('message')) {
-    return "Your dashboard shows task assignments and communication health. Click the blue expand arrows to see detailed task lists for each project, and click the badges to see threaded task messages.";
-  }
-  
-  if (msg.includes('dashboard') || msg.includes('help')) {
-    return "Your dashboard shows: Active projects (<=2 days), Normal (3-7 days), Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
-  }
-  
-  // General responses
-  if (msg.includes('hello') || msg.includes('hi')) {
-    return "Hi! I'm your ProWorkflow AI assistant. I can help you analyze project health, identify bottlenecks, suggest follow-ups, and navigate your dashboard. What would you like to know?";
-  }
-  
-  // Default intelligent response
-  return `I understand you're asking about "${message}". I can help you analyze your ProWorkflow data, identify communication gaps, track project health, and suggest actions. Your dashboard shows real-time project status with threaded messages. What specific insights would you like?`;
 }
+
+
+
+
+
+
+// Helper: Generate smart system prompt with real data
+function generateProWorkflowSystemPrompt(data) {
+  return `You are an intelligent ProWorkflow dashboard assistant analyzing Brian's creative team data.
+
+CURRENT TEAM STATUS:
+• Total Active Projects: ${data.totalProjects}
+• Stale Projects (>7 days): ${data.staleProjects}
+• Overdue Projects: ${data.overdueProjects}  
+• RUSH Projects: ${data.rushProjects}
+• Team Managers: ${data.managers.join(', ')}
+
+TOP PROJECTS:
+${data.topProjects.map(p => `• #${p.number}: ${p.title} (${p.status}) - ${p.owner}`).join('\n')}
+
+You provide actionable insights about:
+- Project health and communication gaps
+- Workload distribution and bottlenecks  
+- Status workflow optimization
+- Assignment and priority recommendations
+
+Be specific, reference actual project numbers when relevant, and focus on actionable advice. Keep responses concise but insightful.`;
+}
+
+// Helper: Quick insights for dashboard
+function generateQuickInsights(data) {
+  const insights = [];
+  
+  if (data.staleProjects > 0) {
+    insights.push(`?? ${data.staleProjects} projects need communication attention`);
+  }
+  
+  if (data.overdueProjects > 0) {
+    insights.push(`? ${data.overdueProjects} overdue projects require immediate action`);
+  }
+  
+  if (data.rushProjects > 0) {
+    insights.push(`? ${data.rushProjects} RUSH projects in progress`);
+  }
+  
+  if (data.totalProjects > 20) {
+    insights.push(`? High project load: ${data.totalProjects} active projects`);
+  }
+  
+  return insights;
+}
+
+// Helper: Get status breakdown
+function getStatusBreakdown(projects) {
+  const statusCounts = {};
+  projects.forEach(p => {
+    const status = p.customstatus || 'Unknown';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
+  });
+  return statusCounts;
+}
+
+
+
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {

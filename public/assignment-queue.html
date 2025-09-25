@@ -515,6 +515,11 @@
             display: flex;
             flex-direction: column;
         }
+			
+				.chat-sidebar.open {
+						right: 0;
+				}
+
 
 			.chat-sidebar-header {
             background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
@@ -1126,22 +1131,115 @@
 													mainContainer.classList.toggle('chat-open', isOpen);
 											}
 									}
+
 			
-        // Event listeners
-        document.addEventListener('DOMContentLoaded', function() {
-            document.getElementById('groupFilter').addEventListener('change', () => {
-                renderRequests(getFilteredRequests());
-                updateStats({ projectrequests: getFilteredRequests() });
-            });
-            
-            document.getElementById('urgencyFilter').addEventListener('change', () => {
-                renderRequests(getFilteredRequests());
-                updateStats({ projectrequests: getFilteredRequests() });
-            });
-            
-            // Load requests on page load
-            loadRequests();
+			
+			
+			
+				// Event listeners
+				document.addEventListener('DOMContentLoaded', function() {
+						document.getElementById('groupFilter').addEventListener('change', () => {
+								renderRequests(getFilteredRequests());
+								updateStats({ projectrequests: getFilteredRequests() });
+						});
+
+						document.getElementById('urgencyFilter').addEventListener('change', () => {
+								renderRequests(getFilteredRequests());
+								updateStats({ projectrequests: getFilteredRequests() });
+						});
+
+						// Add chat event listeners INSIDE the DOMContentLoaded function
+						const chatInput = document.getElementById('chatInput');
+						if (chatInput) {
+								chatInput.addEventListener('keypress', (e) => {
+										if (e.key === 'Enter' && !e.shiftKey) {
+												e.preventDefault();
+												sendMessage();
+										}
+								});
+						}
+
+						const chatSend = document.getElementById('chatSend');
+						if (chatSend) {
+								chatSend.addEventListener('click', sendMessage);
+						}
+
+						// Load requests on page load
+						loadRequests();
+				});
+			
+			
+			
+
+let chatHistory = [];
+
+// Helper to append messages to the chat window
+function addMessage(text, sender) {
+    const messages = document.getElementById('chatMessages');
+    if (!messages) {
+        console.warn('Chat messages container not found');
+        return;
+    }
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${sender}`;
+    messageDiv.textContent = text;
+
+    messages.appendChild(messageDiv);
+    messages.scrollTop = messages.scrollHeight; // auto-scroll
+}
+
+// Send message to backend API
+async function sendMessage() {
+    const input = document.getElementById('chatInput');
+    const sendButton = document.getElementById('chatSend');
+    
+    if (!input) {
+        console.warn('Chat input not found');
+        return;
+    }
+    
+    const userMessage = input.value.trim();
+    if (!userMessage) return;
+
+    // Disable send button during processing
+    if (sendButton) sendButton.disabled = true;
+
+    addMessage(userMessage, "user");
+    input.value = "";
+
+    try {
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                message: userMessage, 
+                history: chatHistory,
+                context: 'assignment-queue' // Add context for assignment-specific responses
+            })
         });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        const reply = data.response || data.reply?.content || "No reply received";
+
+        addMessage(reply, "agent");
+        chatHistory.push({ role: "user", content: userMessage });
+        chatHistory.push({ role: "assistant", content: reply });
+        
+    } catch (err) {
+        console.error('Chat error:', err);
+        addMessage("⚠️ Error communicating with assistant. Please try again.", "agent");
+    } finally {
+        // Re-enable send button
+        if (sendButton) sendButton.disabled = false;
+    }
+}
+			
+			
 </script>
 		
 		
@@ -1164,7 +1262,7 @@
             </div>
             <div class="chat-input-container">
                 <textarea class="chat-input" id="chatInput" placeholder="Ask about assignments..." rows="1"></textarea>
-                <button class="chat-send" id="chatSend">Send</button>
+<button class="chat-send" id="chatSend" onclick="sendMessage()">Send</button>
             </div>
         </div>
     </div>

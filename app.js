@@ -344,6 +344,73 @@ function getEnhancedProjectStatus(project) {
   };
 }
 
+	
+	// Smart contextual responses for dashboard and assignment queue queries
+function generateContextualResponse(message, context, history) {
+  const msg = message.toLowerCase();
+  
+  // Assignment Queue specific responses
+  if (context === 'assignment-queue') {
+    if (msg.includes('assign') || msg.includes('designer')) {
+      return "I can help you assign projects to the right team members! Consider: workload balance, skill match (Richard for EMEA, Ella for APAC, Paul for AppSec), project complexity, and client preferences. What project are you looking to assign?";
+    }
+    
+    if (msg.includes('overdue') || msg.includes('urgent')) {
+      return "For overdue requests, prioritize by: 1) Days overdue, 2) Client importance, 3) Project complexity. RUSH projects need same-day assignment. Would you like me to help prioritize your current queue?";
+    }
+    
+    if (msg.includes('capacity') || msg.includes('workload')) {
+      return "Check team capacity using the Staff Workload Overview report in ProWorkflow. Aim for <=6 hours per person per day. I can help you balance assignments across Richard, Ella, and Paul.";
+    }
+    
+    if (msg.includes('sla') || msg.includes('timeline')) {
+      return "Standard SLA: Tier 1 (5 days), Tier 2 (10 days), Tier 3 (15 days). RUSH projects need immediate assignment. Assignment should happen within 1 business day (same day for RUSH). What's the project complexity?";
+    }
+    
+    if (msg.includes('hello') || msg.includes('hi')) {
+      return "Hi! I'm your assignment queue assistant. I can help you assign projects efficiently, manage team capacity, track SLAs, and optimize your workflow. What assignment challenge can I help you solve?";
+    }
+    
+    // Default assignment queue response
+    return `I understand you're asking about "${message}". I can help you with project assignments, team capacity planning, SLA management, and workflow optimization. What specific assignment challenge can I help you solve?`;
+  }
+  
+  // Dashboard responses
+  if (msg.includes('stale') || msg.includes('communication')) {
+    return "I can see your communication health data. Projects with red badges (>7 days) need immediate attention. Would you like me to identify which clients to follow up with?";
+  }
+  
+  if (msg.includes('overdue') || msg.includes('deadline')) {
+    return "I can help you identify overdue projects and tasks. Check the red deadline badges in your project list. Would you like me to prioritize them by urgency?";
+  }
+  
+  if (msg.includes('rush') || msg.includes('urgent')) {
+    return "RUSH projects are highlighted in yellow. I can help you track their progress and ensure they're moving through the workflow quickly.";
+  }
+  
+  if (msg.includes('assignment') || msg.includes('assign')) {
+    return "For assignment management, check your Assignment Queue at /assignment-queue. I can help you match projects to the right team members based on skills and workload.";
+  }
+  
+  if (msg.includes('task') || msg.includes('message')) {
+    return "Your dashboard shows task assignments and communication health. Click the blue expand arrows to see detailed task lists for each project, and click the badges to see threaded task messages.";
+  }
+  
+  if (msg.includes('dashboard') || msg.includes('help')) {
+    return "Your dashboard shows: Active projects (<=2 days), Normal (3-7 days), Stale (>7 days). Use filters to sort by communication health, due dates, or manager. What specific area would you like help with?";
+  }
+  
+  if (msg.includes('hello') || msg.includes('hi')) {
+    return "Hi! I'm your ProWorkflow AI assistant. I can help you analyze project health, identify bottlenecks, suggest follow-ups, and navigate your dashboard. What would you like to know?";
+  }
+  
+  // Default response
+  return `I understand you're asking about "${message}". I can help you analyze your ProWorkflow data, identify communication gaps, track project health, and suggest actions. Your dashboard shows real-time project status with threaded messages. What specific insights would you like?`;
+}
+	
+	
+	
+	
 // Test endpoint to verify assignment monitoring works
 app.get('/api/test/assignment-queue', (req, res) => {
   const testProjects = [
@@ -1924,70 +1991,185 @@ app.put('/api/rest/project-requests/:id/approve', async (req, res) => {
   }
 });
 
-// INTELLIGENT AI Assistant Chat endpoint - Replace the existing one
+// AI Assistant Chat endpoint - COMPREHENSIVE with ChatGPT and fallback
 app.post('/api/chat', async (req, res) => {
   try {
-    const { message, history } = req.body;
+    const { message, context, history } = req.body;
     
-    console.log('? Smart AI Request:', message);
+    console.log('AI Assistant Request:', message, 'Context:', context);
+
+		console.log('? Calling ChatGPT with context:', context);
     
+    // Try ChatGPT first if available
+// Try ChatGPT first if available
+if (process.env.OPENAI_API_KEY) {
+  try {
     // Get current dashboard data for context
-    const dashboardData = await getDashboardContext();
+    let dashboardContext = '';
     
-    // Build conversation for ChatGPT
+    if (context === 'assignment-queue') {
+      try {
+        console.log('? Fetching assignment queue data for ChatGPT context...');
+        
+        // Get actual project requests data
+        const requestsData = await ProWorkflowAPI.getProjectRequests();
+        const requests = requestsData.projectrequests || [];
+        
+        // Analyze the current queue
+        const totalRequests = requests.length;
+        const rushProjects = requests.filter(r => 
+          r.title.toLowerCase().includes('rush') || 
+          r.customstatus?.toLowerCase().includes('rush')
+        );
+        
+        const overdueProjects = requests.filter(r => {
+          if (!r.duedate) return false;
+          return new Date(r.duedate) < new Date();
+        });
+        
+        const urgentProjects = requests.filter(r => {
+          if (!r.duedate) return false;
+          const daysUntilDue = Math.floor((new Date(r.duedate) - new Date()) / (1000 * 60 * 60 * 24));
+          return daysUntilDue <= 7 && daysUntilDue >= 0;
+        });
+        
+        // Get recent requests for context
+        const recentRequests = requests.slice(0, 5);
+        
+        dashboardContext = `CURRENT ASSIGNMENT QUEUE DATA:
+
+Queue Summary:
+- Total requests: ${totalRequests}
+- RUSH projects: ${rushProjects.length}
+- Overdue projects: ${overdueProjects.length}
+- Due within 7 days: ${urgentProjects.length}
+
+${rushProjects.length > 0 ? `RUSH Projects (need same-day assignment):
+${rushProjects.map(r => `- "${r.title}" (Client: ${r.clientname}, Due: ${r.duedate ? new Date(r.duedate).toLocaleDateString() : 'No date'})`).join('\n')}
+
+` : ''}${overdueProjects.length > 0 ? `OVERDUE Projects (immediate attention):
+${overdueProjects.map(r => `- "${r.title}" (Client: ${r.clientname}, Due: ${new Date(r.duedate).toLocaleDateString()})`).join('\n')}
+
+` : ''}Recent Requests:
+${recentRequests.map(r => `- "${r.title}" (Client: ${r.clientname}${r.duedate ? `, Due: ${new Date(r.duedate).toLocaleDateString()}` : ''})`).join('\n')}`;
+        
+        console.log('? Assignment queue context prepared for ChatGPT');
+        
+      } catch (err) {
+        console.log('? Could not fetch assignment queue data:', err.message);
+        dashboardContext = 'Unable to fetch current queue data.';
+      }
+    }
+
+    // Build messages array for ChatGPT
     const messages = [
       {
         role: "system",
-        content: generateProWorkflowSystemPrompt(dashboardData)
-      },
-      // Add previous conversation (keep last 6 messages for context)
-      ...(history || []).slice(-6),
-      {
-        role: "user",
-        content: message
+        content: context === 'assignment-queue' 
+          ? `You are a ProWorkflow assignment queue assistant for Creative Services team.
+
+${dashboardContext}
+
+Your team:
+- Richard (EMEA clients)
+- Ella (APAC clients) 
+- Paul (AppSec clients)
+
+SLA Guidelines:
+- Tier 1: 5 business days (simple tasks)
+- Tier 2: 10 business days (standard work)
+- Tier 3: 15 business days (complex projects)
+- RUSH projects: same-day assignment required
+
+Use the CURRENT QUEUE DATA above to give specific, actionable advice. Reference actual project names, clients, and due dates when relevant. Be concise but thorough.`
+          : `You are a ProWorkflow dashboard assistant. Help analyze project communication health, identify bottlenecks, and track project status. Be specific and actionable.`
       }
     ];
 
-    console.log('? Dashboard context:', {
-      projects: dashboardData.totalProjects,
-      stale: dashboardData.staleProjects,
-      overdue: dashboardData.overdueProjects
-    });
 
-    // Call ChatGPT
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Fast and cost-effective
-      messages: messages,
-      max_tokens: 400,
-      temperature: 0.7,
-    });
 
-    const aiReply = completion.choices[0].message.content;
+
+
+        // Add conversation history
+        if (history && Array.isArray(history)) {
+          history.slice(-6).forEach(msg => {
+            messages.push({
+              role: msg.role,
+              content: msg.content
+            });
+          });
+        }
+        
+        // Add current message
+        messages.push({
+          role: "user",
+          content: message
+        });
+
+
+// Add current message
+        messages.push({
+          role: "user",
+          content: message
+        });
+
+        // ADD DEBUG LINES HERE (after messages array is complete):
+        console.log('? ChatGPT Messages being sent:');
+        console.log('? System message:', messages[0].content);
+        console.log('? User message:', message);
+        console.log('? Context:', context);
+
+        console.log('? Calling ChatGPT with context:', context);
+        
+        // Call ChatGPT
+        const completion = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: messages,
+          max_tokens: 400,
+          temperature: 0.7,
+        });
+
+
+
+        const aiReply = completion.choices[0].message.content;
+        
+        console.log('? ChatGPT responded:', aiReply.substring(0, 100) + '...');
+        
+        return res.json({ 
+          response: aiReply,
+          reply: { content: aiReply }, // For backward compatibility
+          timestamp: new Date().toISOString(),
+          context: context || 'chatgpt-intelligent-analysis'
+        });
+        
+      } catch (chatGptError) {
+        console.error('? ChatGPT Error:', chatGptError.message);
+        // Fall through to contextual responses
+      }
+    }
     
-    console.log('? ChatGPT responded:', aiReply.substring(0, 100) + '...');
+    // Fallback to contextual responses
+    console.log('? Using contextual fallback responses');
+    const response = generateContextualResponse(message, context, history);
     
     res.json({ 
-      reply: { content: aiReply },
-      dashboardInsights: generateQuickInsights(dashboardData),
+      response: response,
+      reply: { content: response }, // For backward compatibility
       timestamp: new Date().toISOString(),
-      context: 'chatgpt-intelligent-analysis'
+      context: context || 'fallback-contextual'
     });
     
   } catch (error) {
-    console.error('? ChatGPT Error:', error.message);
-    
-    // Fallback to smart contextual responses if ChatGPT fails
-		const fallbackResponse = "I'm your AI assistant. I can analyze your projects and provide insights, but I'm temporarily offline. Please try again in a moment.";
-    
-    res.json({ 
-      reply: { content: fallbackResponse + '\n\n(Note: AI temporarily using fallback - ChatGPT unavailable)' },
-      error: 'ChatGPT unavailable',
-      timestamp: new Date().toISOString(),
-      context: 'fallback-smart-responses'
+    console.error('AI Assistant Error:', error);
+    res.status(500).json({ 
+      error: 'AI Assistant temporarily unavailable',
+      response: context === 'assignment-queue' 
+        ? 'I can help you with assignment queue management. Please try again.'
+        : 'I can help you analyze your projects. Please try again.',
+      fallback: true
     });
   }
 });
-
 
 
 // Helper: Get live dashboard data for AI context - FIXED with detailed project data

@@ -7,6 +7,93 @@ const express = require('express');
 const axios = require('axios');
 const path = require('path');
 const { OpenAI } = require('openai');
+						
+						
+// --- Chat tools (function calling) ---
+const CHAT_TOOLS = [
+  {
+    type: "function",
+    function: {
+      name: "fetchDashboardDigest",
+      description: "Return a precomputed digest of current projects/requests for fast analysis.",
+      parameters: {
+        type: "object",
+        properties: {
+          managerId: { type: "string", description: "Optional filter by manager id" }
+        }
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "analyzeProjects",
+      description: "Analyze a list of projects and return findings as structured JSON.",
+      parameters: {
+        type: "object",
+        properties: {
+          projects: { type: "array", items: { type: "object" } },
+          focus: { type: "string", description: "e.g., 'overdue', 'stale', 'balance', 'risks'" }
+        },
+        required: ["projects"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "updateProjectStatus",
+      description: "Update a project custom status by ID (uses customstatusid).",
+      parameters: {
+        type: "object",
+        properties: {
+          projectId: { type: "string" },
+          statusId: { type: "number" }
+        },
+        required: ["projectId", "statusId"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "updateTaskDate",
+      description: "Update a task start or due date (YYYY-MM-DD).",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "string" },
+          field: { type: "string", enum: ["startdate", "duedate"] },
+          value: { type: "string" }
+        },
+        required: ["taskId", "field", "value"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "setTaskCompletion",
+      description: "Complete or reactivate a task.",
+      parameters: {
+        type: "object",
+        properties: {
+          taskId: { type: "string" },
+          complete: { type: "boolean" }
+        },
+        required: ["taskId", "complete"]
+      }
+    }
+  }
+];
+
+console.log('[AI] First tool:', JSON.stringify(CHAT_TOOLS[0], null, 2));
+
+
+						
+						
+						
+						
 // SECURITY IMPORTS
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
@@ -1991,6 +2078,106 @@ app.put('/api/rest/project-requests/:id/approve', async (req, res) => {
   }
 });
 
+
+
+// --- Tool executors ---
+async function tool_fetchDashboardDigest({ managerId }) {
+  const projectsRes = await ProWorkflowAPI.getProjects();
+  const raw = projectsRes.projects || projectsRes.data || [];
+
+  const today = new Date();
+  const projects = raw.map(p => {
+    const due = p.duedate || p.dueDate || null;
+    const dueDays = due ? Math.floor((new Date(due) - today) / 86400000) : null;
+    return {
+      id: String(p.id || p.projectId || p.number),
+      title: p.title,
+      manager: p.owner || p.manager,
+      status: p.customstatus || p.customStatus,
+      statusColor: p.statusColor || p.customstatuscolor,
+      startDate: p.startdate || p.startDate || null,
+      dueDate: due,
+      daysIdle: p.daysIdle ?? 0,
+      daysSinceLastMessage: typeof p.daysSinceLastMessage === 'number' ? p.daysSinceLastMessage : null,
+      lastMessageType: p.lastMessageType || null,
+      dueDays
+    };
+  }).filter(p => (managerId ? String(p.managerId) === String(managerId) : true));
+
+  const overdue = projects.filter(p => p.dueDate && new Date(p.dueDate) < today);
+  const urgent = projects.filter(p => typeof p.dueDays === 'number' && p.dueDays >= 0 && p.dueDays <= 7);
+  const staleComm = projects.filter(p => (p.daysSinceLastMessage ?? 99) > 7);
+
+  return {
+    totals: {
+      projects: projects.length,
+      overdue: overdue.length,
+      urgent: urgent.length,
+      staleComm: staleComm.length
+    },
+    highlights: {
+      overdue: overdue.slice(0, 10),
+      urgent: urgent.slice(0, 10),
+      staleComm: staleComm.slice(0, 10)
+    },
+    projects
+  };
+}
+
+async function tool_analyzeProjects({ projects = [], focus }) {
+  if (!Array.isArray(projects) || projects.length === 0) {
+    return { stats: { total: 0 }, notes: ["No projects provided"] };
+  }
+
+
+const today = new Date();
+  const stats = { total: projects.length, overdue: 0, urgent: 0, noDue: 0, maxIdle: 0, avgIdle: 0 };
+  let idleSum = 0;
+  const notes = [];
+
+  projects.forEach(p => {
+    const due = p.dueDate || p.duedate;
+    const dueDays = due ? Math.floor((new Date(due) - today) / 86400000) : null;
+    if (due && new Date(due) < today) stats.overdue++;
+    if (typeof dueDays === 'number' && dueDays >= 0 && dueDays <= 7) stats.urgent++;
+    if (!due) stats.noDue++;
+    const idle = p.daysIdle ?? 0;
+    idleSum += idle;
+    if (idle > stats.maxIdle) stats.maxIdle = idle;
+
+    if (focus === 'overdue' && due && new Date(due) < today) {
+      notes.push(`• ${p.title} — due ${due} (${Math.abs(dueDays)}d late)`);
+    }
+  });
+
+  stats.avgIdle = projects.length ? Math.round(idleSum / projects.length) : 0;
+  return { stats, notes, focus: focus || null };
+}
+
+async function tool_updateProjectStatus({ projectId, statusId }) {
+  // Use customstatusid (your fixed persistence path)
+  const result = await ProWorkflowAPI.makeRequest(`/projects/${projectId}`, 'PUT', { customstatusid: statusId });
+  return { ok: true, result };
+}
+
+async function tool_updateTaskDate({ taskId, field, value }) {
+  const result = await ProWorkflowAPI.makeRequest(`/tasks/${taskId}`, 'PUT', { [field]: value });
+  return { ok: true, result };
+}
+
+async function tool_setTaskCompletion({ taskId, complete }) {
+  const endpoint = complete ? `/tasks/${taskId}/complete` : `/tasks/${taskId}/reactivate`;
+  const body = complete ? { completedate: new Date().toISOString().split('T')[0] } : {};
+  const result = await ProWorkflowAPI.makeRequest(endpoint, 'PUT', body);
+  return { ok: true, result };
+}
+
+
+
+/* 
+// OLD AI Assistant Chat endpoint
+
+
 // AI Assistant Chat endpoint - COMPREHENSIVE with ChatGPT and fallback
 app.post('/api/chat', async (req, res) => {
   try {
@@ -2172,6 +2359,116 @@ Use the CURRENT QUEUE DATA above to give specific, actionable advice. Reference 
 });
 
 
+*/
+
+// NEW AI Assistant Chat endpoint with GPT-5 tools
+// NEW AI Assistant Chat endpoint with GPT-5 tools
+	app.post('/api/chat', async (req, res) => {
+		try {
+			const { message, history, context } = req.body;
+
+			// Build context as before
+			const dashboardData = await getDashboardContext();
+			const messages = [
+				{ role: "system", content: generateProWorkflowSystemPrompt(dashboardData) },
+				...(history || []).slice(-6),
+				{ role: "user", content: message }
+			];
+
+			// First pass: model decides if it wants to call a tool
+			const first = await openai.chat.completions.create({
+				model: "gpt-5", // or "gpt-4o-mini" if needed
+				messages,
+				tools: CHAT_TOOLS,
+				tool_choice: "auto",
+				max_completion_tokens: 400
+			});
+
+			const choice = first.choices[0].message;
+
+			// If model just answered in text, return that
+			if (!choice.tool_calls || choice.tool_calls.length === 0) {
+				return res.json({
+					reply: { content: choice.content || "OK." },
+					dashboardInsights: generateQuickInsights(dashboardData),
+					timestamp: new Date().toISOString(),
+					context: context || 'chat-text-only'
+				});
+			}
+
+			// If model wants to call tools, run them
+			const toolMsgs = [];
+			for (const call of choice.tool_calls) {
+				const { name } = call.function;
+				const args = JSON.parse(call.function.arguments || "{}");
+
+				console.log(`? Tool requested: ${name}`, args);
+
+				let result;
+
+				if (name === "fetchDashboardDigest") {
+					result = await tool_fetchDashboardDigest(args);
+
+				} else if (name === "analyzeProjects") {
+					// Safety net: inject digest.projects if missing or empty
+					if (!args.projects || args.projects.length === 0) {
+						console.log("?? analyzeProjects called without projects — injecting digest.projects (capped at 25)");
+						const digest = await tool_fetchDashboardDigest({});
+						args.projects = digest.projects.slice(0, 25);
+					}
+					result = await tool_analyzeProjects(args);
+
+				} else if (name === "updateProjectStatus") {
+					result = await tool_updateProjectStatus(args);
+
+				} else if (name === "updateTaskDate") {
+					result = await tool_updateTaskDate(args);
+
+				} else if (name === "setTaskCompletion") {
+					result = await tool_setTaskCompletion(args);
+
+				} else {
+					result = { ok: false, error: `Unknown tool: ${name}` };
+				}
+
+				toolMsgs.push({
+					role: "tool",
+					tool_call_id: call.id,
+					content: JSON.stringify(result)
+				});
+			}
+
+			// Second pass: give tool results back to model, let it explain in natural language
+			const second = await openai.chat.completions.create({
+				model: "gpt-5",
+				messages: [...messages, choice, ...toolMsgs],
+				max_completion_tokens: 600
+			});
+
+			const finalMsg = second.choices[0].message;
+			console.log('? Final reply from GPT:', finalMsg);
+
+			return res.json({
+				reply: { content: finalMsg.content || "Done." },
+				dashboardInsights: generateQuickInsights(dashboardData),
+				timestamp: new Date().toISOString(),
+				context: context || 'chat-tools-mode'
+			});
+
+		} catch (error) {
+			console.error('AI error:', error);
+			const fallback = "I can analyze and suggest next steps, but I’m temporarily offline. Try again shortly.";
+			res.json({
+				reply: { content: `${fallback}\n\n(Note: fallback active)` },
+				error: 'AI unavailable',
+				timestamp: new Date().toISOString(),
+				context: 'fallback'
+			});
+		}
+	});
+
+
+
 // Helper: Get live dashboard data for AI context - FIXED with detailed project data
 async function getDashboardContext() {
   try {
@@ -2283,26 +2580,27 @@ async function getDashboardContext() {
 
 
 // Helper: Generate smart system prompt with real data
-function generateProWorkflowSystemPrompt(data) {
-  return `You are an intelligent ProWorkflow dashboard assistant analyzing Brian's creative team data.
+function generateProWorkflowSystemPrompt(dashboardData) {
+  return `
+You are a ProWorkflow triage assistant for the Creative Services team.
 
-CURRENT TEAM STATUS:
-• Total Active Projects: ${data.totalProjects}
-• Stale Projects (>7 days): ${data.staleProjects}
-• Overdue Projects: ${data.overdueProjects}  
-• RUSH Projects: ${data.rushProjects}
-• Team Managers: ${data.managers.join(', ')}
+## How to work:
+- **Always call \`fetchDashboardDigest\` first** to get the current list of projects.
+- Then, when analyzing (e.g. overdue, urgent, stale), call \`analyzeProjects\` and pass the \`projects\` array from the digest.
+- Do not call \`analyzeProjects\` with an empty or missing projects array.
+- If you need to propose a change (status update, due date adjustment, task completion), use the correct tool (\`updateProjectStatus\`, \`updateTaskDate\`, \`setTaskCompletion\`).
+- Only make write changes if the user clearly asks, or after you propose and the user confirms.
+- Keep answers brief and actionable: use bullets and highlight counts (e.g. "2 overdue, 3 urgent").
+- Always explain *why* an item is flagged (e.g. "10 days overdue, client waiting").
 
-TOP PROJECTS:
-${data.topProjects.map(p => `• #${p.number}: ${p.title} (${p.status}) - ${p.owner}`).join('\n')}
+## Current Context Summary:
+- Total projects: ${dashboardData.totalProjects || 0}
+- Overdue: ${dashboardData.overdueProjects || 0}
+- Stale: ${dashboardData.staleProjects || 0}
+- Recent examples: ${dashboardData.recentTitles ? dashboardData.recentTitles.join(', ') : 'n/a'}
 
-You provide actionable insights about:
-- Project health and communication gaps
-- Workload distribution and bottlenecks  
-- Status workflow optimization
-- Assignment and priority recommendations
-
-Be specific, reference actual project numbers when relevant, and focus on actionable advice. Keep responses concise but insightful.`;
+Remember: prefer tool calls over inventing answers. 
+  `;
 }
 
 // Helper: Quick insights for dashboard
